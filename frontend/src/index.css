@@ -1,0 +1,396 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Paleta cromática premium (Modo Claro) - Fondo Blanco */
+  --bg-color: #ffffff;
+  --bg-gradient: none;
+  --text-main: #1e293b;
+  --text-muted: #64748b;
+  
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-light: rgba(59, 130, 246, 0.1);
+  --accent: #8b5cf6;
+  
+  /* Sistema Semafórico */
+  --green: #10b981;
+  --yellow: #f59e0b;
+  --red: #ef4444; 
+  
+  /* Elementos de Interfaz en Blanco Límpio */
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  --card-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.04);
+  
+  /* Sistema de espaciado y radios */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 30px;
+  
+  --transition-fast: 0.15s ease-out;
+  --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* El modo oscuro automático se ha deshabilitado para forzar el diseño en blanco corporativo */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--bg-color);
+  background-image: var(--bg-gradient);
+  color: var(--text-main);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+/* --- Utilidades Core --- */
+.glass-panel {
+  background: var(--card-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow);
+  padding: 24px;
+}
+
+/* Animaciones e interactividad más sutiles */
+.hover-lift {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px -8px rgba(0,0,0,0.15);
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn { 
+  from { opacity: 0; transform: translateY(2px); } 
+  to { opacity: 1; transform: translateY(0); } 
+}
+
+/* Animación y Popups de Notificaciones */
+.bell-hover {
+  transition: color 0.2s;
+}
+.bell-hover:hover {
+  animation: ring 0.5s ease-in-out;
+  color: #111827 !important;
+}
+
+
+
+@keyframes ring {
+  0% { transform: rotate(0); }
+  20% { transform: rotate(15deg); }
+  40% { transform: rotate(-10deg); }
+  60% { transform: rotate(5deg); }
+  80% { transform: rotate(-5deg); }
+  100% { transform: rotate(0); }
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 55px;
+  right: -5px;
+  width: min(320px, 90vw);
+  background-color: #ffffff;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 0;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.2s ease-out;
+  overflow: hidden;
+}
+
+.dropdown-menu.active {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.dropdown-item:hover {
+  background-color: rgba(0,0,0,0.03);
+}
+
+/* Semáforo de Riesgo */
+.badge-risk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-xl);
+  font-weight: 500;
+  font-size: 0.875rem;
+  letter-spacing: -0.01em;
+}
+
+.badge-risk.bajo {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--green);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-risk.medio {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--yellow);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-risk.alto {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--red);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Sistema de Formularios Premium */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-main);
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 1rem;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  outline: none;
+}
+
+.form-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.form-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Botones */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--text-main);
+  border: 1px solid var(--text-muted);
+}
+
+.btn-secondary:hover {
+  background-color: rgba(0,0,0,0.05);
+}
+
+/* Contenedor Principal */
+.layout-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+/* Grillas estándar y utilidades layout responsivas */
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+
+.navbar-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 40px;
+  height: 80px;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  color: var(--text-main);
+}
+
+.nav-links-desktop {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+}
+
+.hamburger-btn {
+  display: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  color: var(--text-main);
+}
+
+/* Menú Móvil Lateral */
+.mobile-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 998;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.mobile-menu-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.mobile-menu {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 280px;
+  height: 100%;
+  background: var(--card-bg);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.1);
+  z-index: 999;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mobile-menu.active {
+  transform: translateX(0);
+}
+
+.mobile-menu-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 12px;
+  color: var(--text-main);
+  text-decoration: none;
+  font-weight: 500;
+  margin-bottom: 8px;
+  transition: all 0.2s;
+}
+
+.mobile-menu-link.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: minmax(400px, 1.1fr) minmax(400px, 0.9fr);
+  gap: 32px;
+  height: calc(100vh - 200px);
+}
+
+.hide-on-mobile {
+  display: inline-block;
+}
+
+/* Reglas Móvil y Tablet (Colapso de Nav) */
+@media (max-width: 1250px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+  
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+    gap: 24px;
+  }
+
+  /* Colapsar cuadrículas al mismo tiempo que la nav */
+  .grid-4, .grid-3, .grid-2 { 
+    grid-template-columns: 1fr !important; 
+    gap: 16px;
+  }
+
+  .nav-links-desktop {
+    display: none !important; /* Colapso total a los 1250px */
+  }
+
+  .hamburger-btn {
+    display: flex !important; 
+  }
+
+  .hide-on-mobile {
+    display: none !important;
+  }
+
+  .navbar-container {
+    padding: 0 16px;
+  }
+
+  header h1 {
+    font-size: 1.5rem !important;
+  }
+}
+
+/* Reglas Móvil Estrecho */
+@media (max-width: 600px) {
+  .glass-panel {
+    padding: 16px;
+  }
+  
+  .layout-container {
+    padding: 20px 16px;
+  }
+  
+  .form-input {
+    padding: 10px;
+    font-size: 0.9rem;
+  }
+}

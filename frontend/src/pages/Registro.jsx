@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/ContextoAuth';
 import { LogIn, Mail, Lock, ShieldCheck, AlertCircle } from 'lucide-react';
 
-const Login = () => {
+const Register = () => {
+  const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -17,12 +17,12 @@ const Login = () => {
     setError('');
     setLoading(true);
 
-    const result = await login(email, password, remember);
+    const result = await register(nombre, email, password);
     
     if (result.success) {
       navigate('/');
     } else {
-      setError(result.message || 'Error al iniciar sesión. Verifica tus credenciales.');
+      setError(result.message || 'Error al crear la cuenta. Inténtalo de nuevo.');
     }
     setLoading(false);
   };
@@ -45,14 +45,13 @@ const Login = () => {
         flexDirection: 'column',
         alignItems: 'center'
       }}>
-        {/* Logo Section */}
         <div style={{ marginBottom: '32px', textAlign: 'center' }}>
           <img src="/logo-completo.png" alt="AdvaCheck" style={{ height: '64px', marginBottom: '16px' }} />
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-main)', margin: '0' }}>
-            Bienvenido de nuevo
+            Crear una Cuenta
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '8px' }}>
-            Ingresa tus credenciales para acceder
+            Ingresa tus datos para empezar en WebCheck
           </p>
         </div>
 
@@ -77,6 +76,30 @@ const Login = () => {
         <form onSubmit={handleSubmit} style={{ width: '100%' }}>
           
           <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>Nombre completo</label>
+            <div style={{ position: 'relative' }}>
+              <ShieldCheck size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                type="text"
+                required
+                placeholder="Ej. Juan Pérez"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '14px 14px 14px 44px',
+                  borderRadius: '10px',
+                  border: '1px solid var(--card-border)',
+                  backgroundColor: 'white',
+                  fontSize: '0.95rem',
+                  outline: 'none',
+                  transition: 'border-color 0.2s'
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>Email corporativo</label>
             <div style={{ position: 'relative' }}>
               <Mail size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
@@ -100,13 +123,14 @@ const Login = () => {
             </div>
           </div>
 
-          <div style={{ marginBottom: '24px' }}>
+          <div style={{ marginBottom: '32px' }}>
             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>Contraseña</label>
             <div style={{ position: 'relative' }}>
               <Lock size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
               <input
                 type="password"
                 required
+                minLength={6}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -122,18 +146,6 @@ const Login = () => {
                 }}
               />
             </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              <input 
-                type="checkbox" 
-                checked={remember} 
-                onChange={() => setRemember(!remember)}
-                style={{ cursor: 'pointer' }} 
-              /> Recordarme
-            </label>
-            <a href="#" style={{ fontSize: '0.85rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>¿Olvidaste tu contraseña?</a>
           </div>
 
           <button
@@ -157,19 +169,19 @@ const Login = () => {
               opacity: loading ? 0.7 : 1
             }}
           >
-            {loading ? 'Verificando...' : <><LogIn size={20} /> Iniciar Sesión</>}
+            {loading ? 'Creando cuenta...' : <><LogIn size={20} /> Crear Cuenta</>}
           </button>
         </form>
 
         <div style={{ marginTop: '24px', textAlign: 'center' }}>
           <Link 
-            to="/registrar"
+            to="/login"
             style={{ 
               color: 'var(--text-muted)', 
               fontSize: '0.85rem', textDecoration: 'underline' 
             }}
           >
-            ¿No tienes cuenta? Regístrate gratis
+            ¿Ya tienes una cuenta? Inicia sesión aquí
           </Link>
         </div>
 
@@ -183,4 +195,5 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Register;
+

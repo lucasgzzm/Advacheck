@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { LayoutDashboard, Truck, User, Users, LogOut, Menu, X, History as HistoryIcon } from 'lucide-react';
-import Dashboard from './pages/Dashboard';
-import Shipments from './pages/Shipments';
-import InvoiceDetail from './pages/InvoiceDetail';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Profile from './pages/Profile';
-import History from './pages/History';
-import AdminDashboard from './pages/AdminDashboard';
-import GlobalHistory from './pages/GlobalHistory';
-import UserManagement from './pages/UserManagement';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import PanelPrincipal from './pages/PanelPrincipal';
+import Envios from './pages/Envios';
+import DetalleFactura from './pages/DetalleFactura';
+import InicioSesion from './pages/InicioSesion';
+import Registro from './pages/Registro';
+import Perfil from './pages/Perfil';
+import Historial from './pages/Historial';
+import PanelAdmin from './pages/PanelAdmin';
+import HistorialGlobal from './pages/HistorialGlobal';
+import GestionUsuarios from './pages/GestionUsuarios';
+import { AuthProvider, useAuth } from './context/ContextoAuth';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -270,8 +270,8 @@ function AppContent() {
   if (!user) {
     return (
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/registrar" element={<Register />} />
+        <Route path="/login" element={<InicioSesion />} />
+        <Route path="/registrar" element={<Registro />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -283,22 +283,22 @@ function AppContent() {
     <Layout>
       <Routes>
         {/* Rutas compartidas */}
-        <Route path="/perfil" element={<Profile />} />
+        <Route path="/perfil" element={<Perfil />} />
 
         {/* Rutas de Administrador */}
         {isAdmin ? (
           <>
-            <Route path="/" element={<AdminDashboard />} />
-            <Route path="/maestro" element={<GlobalHistory />} />
-            <Route path="/usuarios" element={<UserManagement />} />
+            <Route path="/" element={<PanelAdmin />} />
+            <Route path="/maestro" element={<HistorialGlobal />} />
+            <Route path="/usuarios" element={<GestionUsuarios />} />
           </>
         ) : (
           /* Rutas de Agente */
           <>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/historial" element={<History />} />
-            <Route path="/envios" element={<Shipments />} />
-            <Route path="/factura/:id/editar" element={<InvoiceDetail />} />
+            <Route path="/" element={<PanelPrincipal />} />
+            <Route path="/historial" element={<Historial />} />
+            <Route path="/envios" element={<Envios />} />
+            <Route path="/factura/:id/editar" element={<DetalleFactura />} />
           </>
         )}
         

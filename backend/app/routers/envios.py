@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from .. import schemas, models
-from ..database import get_db
-from ..repositories import EnvioRepository
+from .. import esquemas, modelos
+from ..base_datos import get_db
+from ..repositorios import EnvioRepository
 
 router = APIRouter(
     prefix="/api/envios",
@@ -12,7 +12,7 @@ router = APIRouter(
 )
 
 
-@router.get("/", response_model=List[schemas.EnvioResponse])
+@router.get("/", response_model=List[esquemas.EnvioResponse])
 async def obtener_envios(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
     """Lista los envíos registrados en el sistema con paginación."""
     repo = EnvioRepository(db)
@@ -20,10 +20,10 @@ async def obtener_envios(skip: int = 0, limit: int = 100, db: AsyncSession = Dep
     return envios
 
 
-@router.post("/", response_model=schemas.EnvioResponse, status_code=status.HTTP_201_CREATED)
-async def crear_envio(envio: schemas.EnvioCreate, db: AsyncSession = Depends(get_db)):
+@router.post("/", response_model=esquemas.EnvioResponse, status_code=status.HTTP_201_CREATED)
+async def crear_envio(envio: esquemas.EnvioCreate, db: AsyncSession = Depends(get_db)):
     """Crea un nuevo envío (cabecera de operación)."""
-    nuevo_envio = models.Envio(
+    nuevo_envio = modelos.Envio(
         referencia_operativa=envio.referencia_operativa,
         cliente_id=envio.cliente_id
     )
@@ -35,7 +35,7 @@ async def crear_envio(envio: schemas.EnvioCreate, db: AsyncSession = Depends(get
     return nuevo_envio
 
 
-@router.get("/{envio_id}", response_model=schemas.EnvioResponse)
+@router.get("/{envio_id}", response_model=esquemas.EnvioResponse)
 async def obtener_envio_por_id(envio_id: int, db: AsyncSession = Depends(get_db)):
     """Obtiene un envío por su ID."""
     repo = EnvioRepository(db)
@@ -43,3 +43,4 @@ async def obtener_envio_por_id(envio_id: int, db: AsyncSession = Depends(get_db)
     if not envio:
         raise HTTPException(status_code=404, detail="El envío no existe o fue eliminado.")
     return envio
+

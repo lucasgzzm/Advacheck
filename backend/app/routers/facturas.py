@@ -4,11 +4,11 @@ from sqlalchemy import select, desc
 from typing import List
 from pydantic import BaseModel
 
-from .auth import get_current_user
-from .. import schemas, models
-from ..database import get_db
-from ..services import SistemaReglasAduaneras
-from ..extractor_service import ExtractorService
+from .autenticacion import get_current_user
+from .. import esquemas, modelos
+from ..base_datos import get_db
+from ..servicios import SistemaReglasAduaneras
+from ..servicio_extraccion import ExtractorService
 
 router = APIRouter(
     prefix="/api/facturas",
@@ -16,8 +16,8 @@ router = APIRouter(
 )
 
 
-@router.post("/", response_model=schemas.FacturaResponse, status_code=status.HTTP_201_CREATED)
-async def registrar_y_evaluar_factura(factura_req: schemas.FacturaCreate, envio_id: int, db: AsyncSession = Depends(get_db)):
+@router.post("/", response_model=esquemas.FacturaResponse, status_code=status.HTTP_201_CREATED)
+async def registrar_y_evaluar_factura(factura_req: esquemas.FacturaCreate, envio_id: int, db: AsyncSession = Depends(get_db)):
     """
     Registra una factura manualmente, la evalúa con el motor de reglas
     y persiste el resultado junto con sus ítems en la BD.
@@ -26,7 +26,7 @@ async def registrar_y_evaluar_factura(factura_req: schemas.FacturaCreate, envio_
     evaluacion_global = SistemaReglasAduaneras.procesar_factura_completa(factura_req)
     
     # Guardar la cabecera de la factura
-    nueva_factura = models.Factura(
+    nueva_factura = modelos.Factura(
         numero_factura=factura_req.numero_factura,
         fecha_emision=factura_req.fecha_emision,
         monto_total=factura_req.monto_total,
@@ -43,7 +43,7 @@ async def registrar_y_evaluar_factura(factura_req: schemas.FacturaCreate, envio_
     # Guardar cada ítem evaluado individualmente
     for req_item in factura_req.detalles:
         evaluacion_item = SistemaReglasAduaneras.evaluar_item(req_item)
-        nuevo_item = models.FacturaDetalle(
+        nuevo_item = modelos.FacturaDetalle(
             descripcion_producto=req_item.descripcion_producto,
             cantidad=req_item.cantidad,
             precio_unitario=req_item.precio_unitario,
@@ -64,7 +64,7 @@ async def escanear_factura_pdf(
     guardar: bool = True,
     file: UploadFile = File(...), 
     db: AsyncSession = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
+    current_user: modelos.Usuario = Depends(get_current_user)
 ):
     """
     Recibe un PDF, extrae los datos con OCR + Gemini,
@@ -85,14 +85,14 @@ async def escanear_factura_pdf(
         datos_extraidos = await ExtractorService.extract_from_pdf(contenido)
         
         # Adaptar los datos al esquema de evaluación del motor de reglas
-        factura_mock = schemas.FacturaCreate(
+        factura_mock = esquemas.FacturaCreate(
             numero_factura=datos_extraidos.get("numero_factura", "N/A"),
             fecha_emision=None, 
             monto_total=datos_extraidos.get("monto_total_cif", 0.0),
             moneda=datos_extraidos.get("moneda", "USD"),
             emisor_nombre=datos_extraidos.get("emisor", {}).get("nombre", "Desconocido"),
             detalles=[
-                schemas.FacturaDetalleCreate(
+                esquemas.FacturaDetalleCreate(
                     descripcion_producto=d["descripcion_producto"],
                     cantidad=d["cantidad"],
                     precio_unitario=d["precio_unitario"]
@@ -116,7 +116,7 @@ async def escanear_factura_pdf(
         # Guardar en el historial de documentos procesados (si está activado)
         if guardar:
             try:
-                nuevo_log = models.DocumentoProcesado(
+                nuevo_log = modelos.DocumentoProcesado(
                     nombre_archivo=file.filename,
                     proveedor=datos_extraidos["emisor"].get("nombre", "Desconocido"),
                     cliente=datos_extraidos["receptor"].get("nombre", "Importador"),
@@ -176,16 +176,16 @@ async def escanear_factura_pdf(
         )
 
 
-@router.get("/historial", response_model=List[schemas.DocumentoProcesadoResponse])
+@router.get("/historial", response_model=List[esquemas.DocumentoProcesadoResponse])
 async def obtener_historial_escaneos(
     db: AsyncSession = Depends(get_db), 
-    current_user: models.Usuario = Depends(get_current_user)
+    current_user: modelos.Usuario = Depends(get_current_user)
 ):
     """Devuelve el historial de documentos procesados por el usuario actual."""
     result = await db.execute(
-        select(models.DocumentoProcesado)
-        .filter(models.DocumentoProcesado.usuario_id == current_user.id)
-        .order_by(desc(models.DocumentoProcesado.fecha_analisis))
+        select(modelos.DocumentoProcesado)
+        .filter(modelos.DocumentoProcesado.usuario_id == current_user.id)
+        .order_by(desc(modelos.DocumentoProcesado.fecha_analisis))
     )
     historial = result.scalars().all()
     return historial
@@ -200,13 +200,13 @@ async def aprobar_factura(
     factura_id: int, 
     payload: AprobarPayload,
     db: AsyncSession = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
+    current_user: modelos.Usuario = Depends(get_current_user)
 ):
     """Marca un documento como aprobado y actualiza su total si se proporcionó uno nuevo."""
     result = await db.execute(
-        select(models.DocumentoProcesado)
-        .filter(models.DocumentoProcesado.id == factura_id)
-        .filter(models.DocumentoProcesado.usuario_id == current_user.id)
+        select(modelos.DocumentoProcesado)
+        .filter(modelos.DocumentoProcesado.id == factura_id)
+        .filter(modelos.DocumentoProcesado.usuario_id == current_user.id)
     )
     doc = result.scalars().first()
     
@@ -228,13 +228,13 @@ async def aprobar_factura(
 async def eliminar_documento(
     doc_id: int, 
     db: AsyncSession = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
+    current_user: modelos.Usuario = Depends(get_current_user)
 ):
     """Elimina un documento del historial. Solo el dueño puede hacerlo."""
     result = await db.execute(
-        select(models.DocumentoProcesado)
-        .filter(models.DocumentoProcesado.id == doc_id)
-        .filter(models.DocumentoProcesado.usuario_id == current_user.id)
+        select(modelos.DocumentoProcesado)
+        .filter(modelos.DocumentoProcesado.id == doc_id)
+        .filter(modelos.DocumentoProcesado.usuario_id == current_user.id)
     )
     doc = result.scalars().first()
     
@@ -247,3 +247,4 @@ async def eliminar_documento(
     await db.delete(doc)
     await db.commit()
     return None
+

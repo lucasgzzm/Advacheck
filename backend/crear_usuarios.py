@@ -1,7 +1,7 @@
 import asyncio
 from sqlalchemy import text
-from app.database import engine
-from app.auth_utils import get_password_hash
+from app.base_datos import engine
+from app.seguridad import get_password_hash
 
 
 async def seed():

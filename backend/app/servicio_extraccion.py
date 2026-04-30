@@ -5,8 +5,8 @@ import asyncio
 from typing import Dict, Any, List
 import json
 from fastapi import HTTPException, status
-from .ocr_service import OCRService
-from .ai_text_service import AITextService
+from .servicio_ocr import OCRService
+from .servicio_texto import AITextService
 
 
 class ExtractorService:
@@ -83,3 +83,4 @@ class ExtractorService:
             data["validacion_error"] = False
 
         return data
+

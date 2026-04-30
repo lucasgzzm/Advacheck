@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List
-from . import schemas
-from .models import NivelRiesgo
+from . import esquemas
+from .modelos import NivelRiesgo
 
 
 @dataclass
@@ -25,7 +25,7 @@ class SistemaReglasAduaneras:
          return texto.lower().strip()
 
     @classmethod
-    def evaluar_item(cls, item: schemas.FacturaDetalleCreate) -> RiesgoEvaluacion:
+    def evaluar_item(cls, item: esquemas.FacturaDetalleCreate) -> RiesgoEvaluacion:
         """
         Evalúa un ítem individual:
         - Verifica que el precio y la cantidad sean válidos.
@@ -72,7 +72,7 @@ class SistemaReglasAduaneras:
         )
 
     @classmethod
-    def procesar_factura_completa(cls, factura: schemas.FacturaCreate) -> RiesgoEvaluacion:
+    def procesar_factura_completa(cls, factura: esquemas.FacturaCreate) -> RiesgoEvaluacion:
         """
         Evalúa la factura completa y asigna un semáforo de riesgo global:
         - Bajo:  Todo válido, partidas asignadas.
@@ -121,3 +121,4 @@ class SistemaReglasAduaneras:
             observaciones="; ".join(observaciones_globales),
             nivel_riesgo_general=nivel_final
         )
+

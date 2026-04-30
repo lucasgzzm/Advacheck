@@ -2,8 +2,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import update
 from typing import Type, TypeVar, Generic, List, Optional
-from .database import Base
-from .models import Envio, Factura, FacturaDetalle
+from .base_datos import Base
+from .modelos import Envio, Factura, FacturaDetalle
 
 ModelType = TypeVar("ModelType", bound=Base)
 
@@ -46,3 +46,4 @@ class FacturaRepository(BaseRepository[Factura]):
 class FacturaDetalleRepository(BaseRepository[FacturaDetalle]):
     def __init__(self, db_session: AsyncSession):
         super().__init__(FacturaDetalle, db_session)
+

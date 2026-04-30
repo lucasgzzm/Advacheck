@@ -2,7 +2,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Boolean, Enum
 from sqlalchemy.orm import relationship
 import enum
-from .database import Base
+from .base_datos import Base
 
 # --- Enumeraciones para estados tipificados ---
 

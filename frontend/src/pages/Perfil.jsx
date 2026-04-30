@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/ContextoAuth';
 import { User, Shield, Lock, Save, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const Profile = () => {
@@ -257,3 +257,4 @@ const Profile = () => {
 };
 
 export default Profile;
+

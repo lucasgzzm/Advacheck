@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from .. import schemas, models
-from ..database import get_db
-from ..auth_utils import (
+from .. import esquemas, modelos
+from ..base_datos import get_db
+from ..seguridad import (
     verify_password, 
     create_access_token, 
     ACCESS_TOKEN_EXPIRE_MINUTES,
@@ -23,11 +23,11 @@ router = APIRouter(
 )
 
 
-@router.post("/login", response_model=schemas.Token)
-async def login(login_req: schemas.LoginRequest, db: AsyncSession = Depends(get_db)):
+@router.post("/login", response_model=esquemas.Token)
+async def login(login_req: esquemas.LoginRequest, db: AsyncSession = Depends(get_db)):
     """Inicia sesión y devuelve un token JWT."""
     # Buscar usuario por email
-    result = await db.execute(select(models.Usuario).filter(models.Usuario.email == login_req.email))
+    result = await db.execute(select(modelos.Usuario).filter(modelos.Usuario.email == login_req.email))
     user = result.scalars().first()
     
     # Validar credenciales
@@ -52,7 +52,7 @@ async def login(login_req: schemas.LoginRequest, db: AsyncSession = Depends(get_
         expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
     # Obtener nombre del rol para incluirlo en el token
-    result_rol = await db.execute(select(models.Rol).filter(models.Rol.id == user.rol_id))
+    result_rol = await db.execute(select(modelos.Rol).filter(modelos.Rol.id == user.rol_id))
     rol = result_rol.scalars().first()
     
     access_token = create_access_token(
@@ -68,11 +68,11 @@ async def login(login_req: schemas.LoginRequest, db: AsyncSession = Depends(get_
     }
 
 
-@router.post("/register", response_model=schemas.Token, status_code=status.HTTP_201_CREATED)
-async def register(req: schemas.RegisterRequest, db: AsyncSession = Depends(get_db)):
+@router.post("/register", response_model=esquemas.Token, status_code=status.HTTP_201_CREATED)
+async def register(req: esquemas.RegisterRequest, db: AsyncSession = Depends(get_db)):
     """Registra un nuevo usuario y devuelve un token JWT para auto-login."""
     # Verificar si el email ya existe
-    result = await db.execute(select(models.Usuario).filter(models.Usuario.email == req.email))
+    result = await db.execute(select(modelos.Usuario).filter(modelos.Usuario.email == req.email))
     existing_user = result.scalars().first()
     if existing_user:
         raise HTTPException(
@@ -81,14 +81,14 @@ async def register(req: schemas.RegisterRequest, db: AsyncSession = Depends(get_
         )
     
     # Asignar rol por defecto (Agente)
-    result_rol = await db.execute(select(models.Rol).filter(models.Rol.nombre == "Agente"))
+    result_rol = await db.execute(select(modelos.Rol).filter(modelos.Rol.nombre == "Agente"))
     default_role = result_rol.scalars().first()
     if not default_role:
-        result_rol = await db.execute(select(models.Rol).filter(models.Rol.nombre != "Administrador").limit(1))
+        result_rol = await db.execute(select(modelos.Rol).filter(modelos.Rol.nombre != "Administrador").limit(1))
         default_role = result_rol.scalars().first()
     
     # Crear el usuario
-    nuevo_usuario = models.Usuario(
+    nuevo_usuario = modelos.Usuario(
         nombre=req.nombre,
         email=req.email,
         hashed_password=get_password_hash(req.password),
@@ -130,16 +130,16 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
     if email is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="El token no contiene identificación")
     
-    result = await db.execute(select(models.Usuario).filter(models.Usuario.email == email))
+    result = await db.execute(select(modelos.Usuario).filter(modelos.Usuario.email == email))
     user = result.scalars().first()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
     return user
 
 
-async def get_current_admin(current_user: models.Usuario = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_current_admin(current_user: modelos.Usuario = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Verifica que el usuario actual tenga rol de Administrador."""
-    result = await db.execute(select(models.Rol).filter(models.Rol.id == current_user.rol_id))
+    result = await db.execute(select(modelos.Rol).filter(modelos.Rol.id == current_user.rol_id))
     rol = result.scalars().first()
     
     if not rol or rol.nombre != "Administrador":
@@ -150,10 +150,10 @@ async def get_current_admin(current_user: models.Usuario = Depends(get_current_u
     return current_user
 
 
-@router.get("/me", response_model=schemas.UserResponse)
-async def get_profile(user: models.Usuario = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+@router.get("/me", response_model=esquemas.UserResponse)
+async def get_profile(user: modelos.Usuario = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Devuelve los datos del perfil del usuario autenticado."""
-    result_rol = await db.execute(select(models.Rol).filter(models.Rol.id == user.rol_id))
+    result_rol = await db.execute(select(modelos.Rol).filter(modelos.Rol.id == user.rol_id))
     rol = result_rol.scalars().first()
     
     return {
@@ -165,7 +165,7 @@ async def get_profile(user: models.Usuario = Depends(get_current_user), db: Asyn
 
 
 @router.post("/change-password")
-async def change_password(req: schemas.PasswordChangeRequest, user: models.Usuario = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def change_password(req: esquemas.PasswordChangeRequest, user: modelos.Usuario = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Permite al usuario cambiar su contraseña."""
     if req.new_password != req.confirm_password:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Las nuevas contraseñas no coinciden")
@@ -177,3 +177,4 @@ async def change_password(req: schemas.PasswordChangeRequest, user: models.Usuar
     await db.commit()
     
     return {"message": "Contraseña actualizada exitosamente"}
+

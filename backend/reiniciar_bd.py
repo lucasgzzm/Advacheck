@@ -5,9 +5,9 @@ import os
 sys.path.append(os.getcwd())
 
 from sqlalchemy import text
-from app.database import engine, Base
-from app.models import Rol, Usuario
-from app.auth_utils import get_password_hash
+from app.base_datos import engine, Base
+from app.modelos import Rol, Usuario
+from app.seguridad import get_password_hash
 
 
 async def reset_database():

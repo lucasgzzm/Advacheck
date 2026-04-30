@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 from datetime import datetime
-from .models import NivelRiesgo, EstadoEnvio
+from .modelos import NivelRiesgo, EstadoEnvio
 
 # --- Esquemas de validación (DTOs) ---
 # Definen la estructura de los datos que entran y salen de la API,

@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/ContextoAuth';
 import { LogIn, Mail, Lock, ShieldCheck, AlertCircle } from 'lucide-react';
 
-const Register = () => {
-  const [nombre, setNombre] = useState('');
+const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { register } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -17,12 +17,12 @@ const Register = () => {
     setError('');
     setLoading(true);
 
-    const result = await register(nombre, email, password);
+    const result = await login(email, password, remember);
     
     if (result.success) {
       navigate('/');
     } else {
-      setError(result.message || 'Error al crear la cuenta. Inténtalo de nuevo.');
+      setError(result.message || 'Error al iniciar sesión. Verifica tus credenciales.');
     }
     setLoading(false);
   };
@@ -45,13 +45,14 @@ const Register = () => {
         flexDirection: 'column',
         alignItems: 'center'
       }}>
+        {/* Logo Section */}
         <div style={{ marginBottom: '32px', textAlign: 'center' }}>
           <img src="/logo-completo.png" alt="AdvaCheck" style={{ height: '64px', marginBottom: '16px' }} />
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-main)', margin: '0' }}>
-            Crear una Cuenta
+            Bienvenido de nuevo
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '8px' }}>
-            Ingresa tus datos para empezar en WebCheck
+            Ingresa tus credenciales para acceder
           </p>
         </div>
 
@@ -76,30 +77,6 @@ const Register = () => {
         <form onSubmit={handleSubmit} style={{ width: '100%' }}>
           
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>Nombre completo</label>
-            <div style={{ position: 'relative' }}>
-              <ShieldCheck size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input
-                type="text"
-                required
-                placeholder="Ej. Juan Pérez"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '14px 14px 14px 44px',
-                  borderRadius: '10px',
-                  border: '1px solid var(--card-border)',
-                  backgroundColor: 'white',
-                  fontSize: '0.95rem',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>Email corporativo</label>
             <div style={{ position: 'relative' }}>
               <Mail size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
@@ -123,14 +100,13 @@ const Register = () => {
             </div>
           </div>
 
-          <div style={{ marginBottom: '32px' }}>
+          <div style={{ marginBottom: '24px' }}>
             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>Contraseña</label>
             <div style={{ position: 'relative' }}>
               <Lock size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
               <input
                 type="password"
                 required
-                minLength={6}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -146,6 +122,18 @@ const Register = () => {
                 }}
               />
             </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              <input 
+                type="checkbox" 
+                checked={remember} 
+                onChange={() => setRemember(!remember)}
+                style={{ cursor: 'pointer' }} 
+              /> Recordarme
+            </label>
+            <a href="#" style={{ fontSize: '0.85rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>¿Olvidaste tu contraseña?</a>
           </div>
 
           <button
@@ -169,19 +157,19 @@ const Register = () => {
               opacity: loading ? 0.7 : 1
             }}
           >
-            {loading ? 'Creando cuenta...' : <><LogIn size={20} /> Crear Cuenta</>}
+            {loading ? 'Verificando...' : <><LogIn size={20} /> Iniciar Sesión</>}
           </button>
         </form>
 
         <div style={{ marginTop: '24px', textAlign: 'center' }}>
           <Link 
-            to="/login"
+            to="/registrar"
             style={{ 
               color: 'var(--text-muted)', 
               fontSize: '0.85rem', textDecoration: 'underline' 
             }}
           >
-            ¿Ya tienes una cuenta? Inicia sesión aquí
+            ¿No tienes cuenta? Regístrate gratis
           </Link>
         </div>
 
@@ -195,4 +183,5 @@ const Register = () => {
   );
 };
 
-export default Register;
+export default Login;
+

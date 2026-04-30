@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .database import engine, Base
-from . import models
-from .routers import envios, facturas, auth, admin
+from .base_datos import engine, Base
+from . import modelos
+from .routers import envios, facturas, autenticacion, administracion
 
 # Inicialización de la aplicación FastAPI
 app = FastAPI(
@@ -23,8 +23,8 @@ app.add_middleware(
 # Registro de los módulos de rutas
 app.include_router(envios.router)
 app.include_router(facturas.router)
-app.include_router(auth.router)
-app.include_router(admin.router)
+app.include_router(autenticacion.router)
+app.include_router(administracion.router)
 
 # Al iniciar el servidor, se crean las tablas que no existan aún en la BD
 @app.on_event("startup")

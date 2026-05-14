@@ -202,34 +202,54 @@ body {
   justify-content: center;
   gap: 8px;
   padding: 12px 24px;
-  border-radius: var(--radius-sm);
-  font-weight: 500;
+  border-radius: 10px;
+  font-weight: 600;
   cursor: pointer;
   border: none;
-  transition: all var(--transition-fast);
+  transition: all 0.2s;
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: 1rem;
 }
 
 .btn-primary {
   background-color: var(--primary);
   color: white;
+  border: 1px solid var(--primary);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .btn-primary:hover {
   background-color: var(--primary-hover);
+  border-color: var(--primary-hover);
   transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background-color: transparent;
+  background-color: var(--card-bg);
   color: var(--text-main);
-  border: 1px solid var(--text-muted);
+  border: 1px solid var(--card-border);
 }
 
 .btn-secondary:hover {
-  background-color: rgba(0,0,0,0.05);
+  background-color: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.btn-danger {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--red);
+  border: 1px solid transparent;
+}
+
+.btn-danger:hover {
+  background-color: var(--red);
+  color: white;
+}
+
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 0.85rem;
 }
 
 /* Contenedor Principal */

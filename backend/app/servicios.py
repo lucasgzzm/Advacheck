@@ -74,49 +74,95 @@ class SistemaReglasAduaneras:
     @classmethod
     def procesar_factura_completa(cls, factura: esquemas.FacturaCreate) -> RiesgoEvaluacion:
         """
-        Evalúa la factura completa y asigna un semáforo de riesgo global:
-        - Bajo:  Todo válido, partidas asignadas.
-        - Medio: Se detectaron faltantes menores.
-        - Alto:  Datos críticos faltantes o descuadre contable.
+        Evalúa la factura con criterios de auditoría senior:
+        - Validación de Incoterm vs Gastos (Flete/Seguro).
+        - Consistencia de Pesos (Bruto vs Neto).
+        - Detección de descripciones ambiguas.
+        - Cuadre contable (CIF = Subtotal + Flete + Seguro + Otros).
         """
         observaciones_globales = []
         nivel_final = NivelRiesgo.BAJO.value
         items_inconsistentes = 0
-        total_calculado = 0.0
+        total_calculado_items = 0.0
         
         # 1. Validación de campos principales
-        if not factura.numero_factura or not factura.monto_total or factura.monto_total <= 0:
+        if not factura.numero_factura:
             nivel_final = NivelRiesgo.ALTO.value
-            observaciones_globales.append("Campos principales incompletos o inválidos (Monto/Número).")
+            observaciones_globales.append("Número de factura no detectado.")
             
-        # 2. Evaluación de cada ítem
+        if not factura.monto_total or factura.monto_total <= 0:
+            nivel_final = NivelRiesgo.ALTO.value
+            observaciones_globales.append("Monto total inválido o no detectado.")
+
+        # 2. Validación de Incoterm vs Cargos
+        incoterm = (factura.incoterm or "").upper()
+        if "CIF" in incoterm:
+            if (factura.monto_flete or 0) <= 0 or (factura.monto_seguro or 0) <= 0:
+                nivel_final = NivelRiesgo.ALTO.value
+                observaciones_globales.append("Incoterm CIF detectado pero falta flete o seguro (Riesgo de Ajuste de Valor).")
+        elif "FOB" in incoterm:
+            if (factura.monto_flete or 0) > 0 or (factura.monto_seguro or 0) > 0:
+                nivel_final = NivelRiesgo.MEDIO.value
+                observaciones_globales.append("Incoterm FOB con cargos de flete/seguro incluidos (Verificar términos).")
+
+        # 3. Validación de Pesos
+        if factura.peso_bruto and factura.peso_neto:
+            if factura.peso_neto > factura.peso_bruto:
+                nivel_final = NivelRiesgo.ALTO.value
+                observaciones_globales.append("Inconsistencia logística: El peso neto supera al peso bruto.")
+        elif not factura.peso_bruto:
+            nivel_final = NivelRiesgo.MEDIO.value
+            observaciones_globales.append("Peso bruto no declarado (Posible Canal Rojo).")
+
+        # 4. País de Origen y Cumplimiento de Receptor
+        if not factura.pais_origen:
+            nivel_final = NivelRiesgo.MEDIO.value
+            observaciones_globales.append("País de origen no especificado (Riesgo de medidas antidumping/TLC).")
+
+        # Regla Específica: Chile (RUT Obligatorio)
+        pais_receptor = (factura.receptor_pais or "").upper()
+        if "CHILE" in pais_receptor or "CL" == pais_receptor:
+            if not factura.receptor_tax_id or factura.receptor_tax_id.strip() == "":
+                nivel_final = NivelRiesgo.ALTO.value
+                observaciones_globales.append("Falta RUT del Importador (Obligatorio para desaduanamiento en Chile).")
+
+        # 5. Evaluación de ítems y descripciones
         if not factura.detalles:
             nivel_final = NivelRiesgo.ALTO.value
             observaciones_globales.append("La factura no posee ítems descriptivos.")
         else:
             for item in factura.detalles:
                 res = cls.evaluar_item(item)
-                total_calculado += (item.precio_unitario * item.cantidad)
+                total_calculado_items += (item.precio_unitario * item.cantidad)
+                
+                # Regla de descripción ambigua
+                desc = item.descripcion_producto.lower()
+                palabras_ambiguas = ["repuestos", "mercancia", "parts", "miscellaneous", "various", "clothing"]
+                if len(desc) < 8 or any(p in desc for p in palabras_ambiguas):
+                    nivel_final = NivelRiesgo.ALTO.value
+                    observaciones_globales.append(f"Descripción ambigua detectada: '{item.descripcion_producto}'.")
+
                 if res.inconsistente:
                     items_inconsistentes += 1
         
-        # 3. Verificación de consistencia contable (suma de ítems vs total declarado)
+        # 6. Verificación de cuadre contable (Aritmética Aduanera)
+        # Algoritmo: Subtotal (Ítems) + Freight + Insurance + Others == Invoice Total
+        suma_cargos = (factura.monto_subtotal or total_calculado_items) + (factura.monto_flete or 0) + (factura.monto_seguro or 0) + (factura.monto_otros_gastos or 0)
         margen_error = 2.0
-        if factura.monto_total and abs(total_calculado - factura.monto_total) > margen_error:
+        if abs(suma_cargos - (factura.monto_total or 0)) > margen_error:
             nivel_final = NivelRiesgo.ALTO.value
-            observaciones_globales.append("Descuadre contable entre la cabecera y los ítems.")
+            observaciones_globales.append(f"Aritmética Aduanera Inconsistente: La suma de Cargos ({suma_cargos} {factura.moneda}) no cuadra con el Total Facturado ({factura.monto_total} {factura.moneda}).")
 
-        # 4. Asignación final del semáforo
+        # 7. Asignación final del semáforo
         if nivel_final != NivelRiesgo.ALTO.value:
-            if items_inconsistentes > 0:
+            if items_inconsistentes > 0 or nivel_final == NivelRiesgo.MEDIO.value:
                 nivel_final = NivelRiesgo.MEDIO.value
-                observaciones_globales.append(f"Existen {items_inconsistentes} elemento(s) inconsistentes a revisar.")
             else:
                 nivel_final = NivelRiesgo.BAJO.value
-                observaciones_globales.append("Operación calificada como apta y consistente.")
+                observaciones_globales.append("Operación consistente bajo criterios estándar.")
 
         return RiesgoEvaluacion(
-            inconsistente=(items_inconsistentes > 0 or nivel_final != NivelRiesgo.BAJO.value),
+            inconsistente=(nivel_final != NivelRiesgo.BAJO.value),
             sugerencia_partida="",
             observaciones="; ".join(observaciones_globales),
             nivel_riesgo_general=nivel_final

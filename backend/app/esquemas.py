@@ -30,7 +30,19 @@ class FacturaBase(BaseModel):
     fecha_emision: Optional[datetime]
     monto_total: Optional[float]
     moneda: str = "USD"
+    incoterm: Optional[str] = None
+    pais_origen: Optional[str] = None
+    monto_subtotal: Optional[float] = 0
+    monto_flete: Optional[float] = 0
+    monto_seguro: Optional[float] = 0
+    monto_otros_gastos: Optional[float] = 0
+    peso_bruto: Optional[float] = 0
+    peso_neto: Optional[float] = 0
     emisor_nombre: Optional[str]
+    emisor_tax_id: Optional[str] = None
+    receptor_nombre: Optional[str] = None
+    receptor_tax_id: Optional[str] = None
+    receptor_pais: Optional[str] = None
 
 class FacturaCreate(FacturaBase):
     detalles: List[FacturaDetalleCreate]
@@ -108,6 +120,55 @@ class DocumentoProcesadoResponse(BaseModel):
     total_cif: Optional[float]
     riesgo: Optional[str]
     estado: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+# --- Esquemas de Observaciones ---
+
+class ObservacionCreate(BaseModel):
+    contenido: str = Field(..., min_length=1, max_length=2000)
+    tipo: str = "nota"  # nota, alerta, correccion
+
+class ObservacionResponse(BaseModel):
+    id: int
+    contenido: str
+    tipo: str
+    fecha_creacion: datetime
+    usuario_nombre: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+# --- Esquemas de Catálogo de Partidas ---
+
+class CatalogoPartidaCreate(BaseModel):
+    descripcion_producto: str = Field(..., min_length=2)
+    partida_arancelaria: str = Field(..., min_length=4)
+
+class CatalogoPartidaResponse(BaseModel):
+    id: int
+    descripcion_producto: str
+    partida_arancelaria: str
+    frecuencia_uso: int
+    ultima_actualizacion: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- Esquemas de Notificaciones ---
+
+class NotificacionResponse(BaseModel):
+    id: int
+    titulo: str
+    mensaje: str
+    tipo: str
+    leida: bool
+    fecha_creacion: datetime
+    documento_id: Optional[int] = None
 
     class Config:
         from_attributes = True

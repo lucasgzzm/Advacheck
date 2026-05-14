@@ -56,7 +56,7 @@ const GlobalHistory = () => {
           </h1>
           <p style={{ color: 'var(--text-muted)', marginTop: '8px', fontSize: '1.05rem' }}>Visibilidad total sobre los documentos procesados por todos los analistas.</p>
         </div>
-        <button onClick={fetchGlobalHistory} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button onClick={fetchGlobalHistory} className="btn btn-secondary">
            <RefreshCw size={18} /> Sincronizar
         </button>
       </header>
@@ -127,9 +127,7 @@ const GlobalHistory = () => {
                     <td style={{ padding: '16px 24px' }}>
                        <button 
                          onClick={() => navigate(`/factura/${item.id}/editar`, { state: { historyData: item } })}
-                         style={{ background: 'var(--primary-light)', border: '1px solid var(--primary)', cursor: 'pointer', color: 'var(--primary)', padding: '6px 10px', borderRadius: '6px', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, fontSize: '0.85rem' }}
-                         onMouseOver={(e) => { e.currentTarget.style.background = 'var(--primary)'; e.currentTarget.style.color = 'white'; }}
-                         onMouseOut={(e) => { e.currentTarget.style.background = 'var(--primary-light)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                         className="btn btn-primary btn-sm"
                        >
                          Ver / Editar
                        </button>

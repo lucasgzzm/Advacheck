@@ -59,6 +59,15 @@ async def login(login_req: esquemas.LoginRequest, db: AsyncSession = Depends(get
         data={"sub": user.email, "role": rol.nombre if rol else "Normal"},
         expires_delta=expires_delta
     )
+
+    # Auditoría: registrar el inicio de sesión
+    log = modelos.Auditoria(
+        accion="Inicio de Sesión",
+        detalles=f"El usuario '{user.nombre}' ({user.email}) inició sesión correctamente.",
+        usuario_id=user.id
+    )
+    db.add(log)
+    await db.commit()
     
     return {
         "access_token": access_token,

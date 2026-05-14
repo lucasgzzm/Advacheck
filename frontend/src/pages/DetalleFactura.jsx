@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { AlertCircle, CheckCircle, Save, XCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, CheckCircle, Save, XCircle, ArrowLeft, Download, ShieldAlert } from 'lucide-react';
+import { useAuth } from '../context/ContextoAuth';
+import ObservacionesPanel from '../components/ObservacionesPanel';
 
 const InvoiceDetail = () => {
+  const { user } = useAuth();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -75,8 +78,11 @@ const InvoiceDetail = () => {
   }, [factura.detalles]);
 
   const handlePreAprove = async () => {
-    // Si la factura tiene un ID proveniente de la base de datos
     const targetId = historyData?.id;
+    const esAdmin = user?.role === 'Administrador';
+    const esRiesgoAlto = factura.riesgo === 'alto';
+    // Si no es admin y el riesgo es alto, solicita revisión en vez de aprobar directamente
+    const requiereRevision = !esAdmin && esRiesgoAlto;
     
     if (targetId) {
       try {
@@ -87,12 +93,16 @@ const InvoiceDetail = () => {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ nuevo_total: parseFloat(factura.monto_total) })
+          body: JSON.stringify({ 
+            nuevo_total: parseFloat(factura.monto_total),
+            solicitar_revision: requiereRevision
+          })
         });
         
         if (res.ok) {
-          alert('¡Operación guardada y pre-aprobada con éxito! Ya está visible para el Administrador como Aprobada.');
-          navigate('/');
+          const data = await res.json();
+          alert(data.mensaje || 'Operación procesada con éxito.');
+          navigate(esAdmin ? '/maestro' : '/historial');
         } else {
           alert('Error al guardar la operación en la base de datos.');
         }
@@ -100,10 +110,41 @@ const InvoiceDetail = () => {
         alert('Error de red al intentar contactar con el servidor.');
       }
     } else {
-      // Caso de recién escaneada (el flujo ideal sería que el scan retornara el ID, pero simularemos)
-      alert('¡Datos validados en memoria! Para guardar esta operación oficialmente, activa el autoguardado en el Dashboard.');
+      alert('¡Datos validados en memoria! Activa el autoguardado en el Dashboard.');
       navigate('/');
     }
+  };
+
+  const handleExportCSV = () => {
+    // Definimos cabeceras (Excel reconoce mejor el punto y coma como separador en español)
+    const headers = ['Nro_Item', 'Descripcion_Producto', 'Cantidad', 'Precio_Unitario_USD', 'Total_Linea_USD', 'Partida_Arancelaria'];
+    
+    // Convertimos los detalles a filas CSV
+    const rows = factura.detalles.map((item, index) => [
+      index + 1,
+      `"${item.descripcion}"`, // entre comillas por si el texto tiene comas/punto y comas
+      item.cantidad,
+      item.precio_unitario,
+      (parseFloat(item.cantidad || 0) * parseFloat(item.precio_unitario || 0)).toFixed(2),
+      item.partida_corregida || item.partida_sugerida
+    ]);
+
+    // Unimos cabeceras y filas con BOM para que Excel detecte acentos
+    const csvContent = "\uFEFF" + [
+      headers.join(';'),
+      ...rows.map(e => e.join(';'))
+    ].join('\n');
+
+    // Creamos el blob y forzamos descarga
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `WebCheck_Factura_${factura.numero}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const RiesgoBanner = () => {
@@ -127,7 +168,7 @@ const InvoiceDetail = () => {
 
   return (
     <div className="fade-in">
-      <button onClick={() => navigate('/')} className="btn btn-secondary" style={{ marginBottom: '24px', padding: '8px 16px' }}>
+      <button onClick={() => navigate('/')} className="btn btn-secondary" style={{ marginBottom: '24px' }}>
         <ArrowLeft size={16} /> Volver
       </button>
 
@@ -136,9 +177,20 @@ const InvoiceDetail = () => {
           <h1 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-1px', margin: 0 }}>Revisión de Factura: {factura.numero}</h1>
           <p style={{ color: 'var(--text-muted)', marginTop: '8px', fontSize: '1.1rem' }}>Emisor Comercial: {factura.emisor}</p>
         </div>
-        <button onClick={handlePreAprove} className="btn btn-primary" style={{ padding: '16px 32px', fontSize: '1.1rem' }}>
-          <CheckCircle size={20} /> Pre-Aprobar Operación
-        </button>
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <button onClick={handleExportCSV} className="btn btn-secondary">
+            <Download size={20} /> Exportar CSV
+          </button>
+          {!isAdmin && factura.riesgo === 'alto' ? (
+            <button onClick={handlePreAprove} className="btn" style={{ backgroundColor: 'var(--yellow)', color: 'white' }}>
+              <ShieldAlert size={20} /> Solicitar Revisión Superior
+            </button>
+          ) : (
+            <button onClick={handlePreAprove} className="btn btn-primary">
+              <CheckCircle size={20} /> Pre-Aprobar Operación
+            </button>
+          )}
+        </div>
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', height: 'calc(100vh - 200px)' }}>
@@ -228,6 +280,9 @@ const InvoiceDetail = () => {
               )}
             </div>
           </div>
+          {historyData?.id && (
+            <ObservacionesPanel documentoId={historyData.id} />
+          )}
         </div>
       </div>
     </div>

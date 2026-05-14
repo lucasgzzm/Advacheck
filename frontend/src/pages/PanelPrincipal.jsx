@@ -141,8 +141,19 @@ const Dashboard = () => {
     });
   };
 
-  // Resetea el panel y permite subir otro archivo
-  const handleReset = () => {
+  const handleReset = async () => {
+    // Si se guardó en BD, lo borramos al rechazar
+    if (extractedData?.id) {
+       try {
+         const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+         await fetch(`http://127.0.0.1:8000/api/facturas/${extractedData.id}`, {
+           method: 'DELETE',
+           headers: { 'Authorization': `Bearer ${token}` }
+         });
+       } catch (e) {
+         console.error('Error al borrar documento:', e);
+       }
+    }
     setFile(null);
     if (fileUrl) URL.revokeObjectURL(fileUrl);
     setFileUrl(null);
@@ -428,7 +439,7 @@ const Dashboard = () => {
                       <Eye size={18} color="var(--primary)" />
                       <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Vista Previa Estricta (PDF Original)</span>
                    </div>
-                   <button onClick={handleReset} className="btn" style={{ padding: '6px 12px', fontSize: '0.8rem', backgroundColor: 'var(--bg-color)', border: '1px solid var(--card-border)', color: 'var(--text-main)' }}>
+                   <button onClick={handleReset} className="btn btn-secondary">
                      Cambiar Archivo
                    </button>
                 </div>
@@ -489,23 +500,31 @@ const Dashboard = () => {
                   </div>
                 </DataSection>
 
-                <DataSection title="Trazabilidad y Documento">
+                 <DataSection title="Trazabilidad y Documento">
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                      <InputField label="Nº de Factura" value={extractedData.factura.numero} />
                      <InputField label="Fecha Emisión" value={extractedData.factura.fecha} />
+                     <InputField label="Incoterm Pactado" value={extractedData.factura.incoterm || 'No detectado'} />
+                     <InputField label="País de Origen" value={extractedData.factura.pais_origen || 'No especificado'} />
                      <InputField label="País Manifiesto" value={extractedData.transporte.paisOrigen} />
                      <InputField label="Tipo de Transporte" value={extractedData.transporte.metodo} />
-                     <InputField label="Courier Autorizado" value={extractedData.transporte.courier} />
-                     <InputField label="Tracking (Guía)" value={extractedData.transporte.tracking} />
                   </div>
                 </DataSection>
 
                 <DataSection title="Desglose Financiero">
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                     <InputField label={`Subtotal FOB (${extractedData.factura.moneda})`} value={extractedData.economia.subtotal} />
+                     <InputField label={`Subtotal (${extractedData.factura.moneda})`} value={extractedData.economia.subtotal} />
                      <InputField label={`Flete / Envío (${extractedData.factura.moneda})`} value={extractedData.economia.envio} />
                      <InputField label={`Seguro (${extractedData.factura.moneda})`} value={extractedData.economia.seguro} />
+                     <InputField label={`Otros Gastos (${extractedData.factura.moneda})`} value={extractedData.economia.otros} />
                      <InputField label={`Gran Total CIF (${extractedData.factura.moneda})`} value={extractedData.economia.total} colorClass={true} />
+                  </div>
+                </DataSection>
+
+                <DataSection title="Consistencia Logística">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                     <InputField label={`Peso Bruto (${extractedData.logistica.unidad_peso})`} value={extractedData.logistica.peso_bruto} />
+                     <InputField label={`Peso Neto (${extractedData.logistica.unidad_peso})`} value={extractedData.logistica.peso_neto} />
                   </div>
                 </DataSection>
 
@@ -513,10 +532,6 @@ const Dashboard = () => {
                    <InputField label="Clasificación Arancelaria Predominante (HS Code)" value={extractedData.partidaPrincipal} colorClass={true} />
                 </DataSection>
 
-                <div style={{ marginTop: '32px', display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingBottom: '24px' }}>
-                  <button onClick={handleReset} className="btn btn-secondary">Rechazar / Re-escanear</button>
-                  <Link to="/factura/1/editar" state={{ fullData: extractedData, fileUrl: fileUrl }} className="btn btn-primary">Revisar Ítems y Proceder (Siguiente Fase)</Link>
-                </div>
               </div>
             )}
           </div>

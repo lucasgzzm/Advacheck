@@ -231,21 +231,9 @@ const Profile = () => {
             <button 
               type="submit" 
               disabled={submitting}
-              style={{ 
-                width: '100%', 
-                padding: '14px', 
-                backgroundColor: 'var(--primary)', 
-                color: 'white', 
-                border: 'none', 
-                borderRadius: '8px', 
-                fontWeight: 600, 
-                cursor: submitting ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                transition: 'opacity 0.2s'
-              }}>
+              className="btn btn-primary"
+              style={{ width: '100%' }}
+            >
               <Save size={18} /> {submitting ? 'Guardando...' : 'Actualizar Contraseña'}
             </button>
           </form>

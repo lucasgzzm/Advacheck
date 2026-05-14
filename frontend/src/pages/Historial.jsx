@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { History as HistoryIcon, Search, AlertCircle, FileText, CheckCircle, AlertTriangle, X, Trash2 } from 'lucide-react';
+import { History as HistoryIcon, Search, AlertCircle, FileText, CheckCircle, AlertTriangle, X, Trash2, RefreshCw } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 const History = () => {
@@ -65,11 +65,11 @@ const History = () => {
   const getRiskBadge = (riesgo) => {
     switch(riesgo?.toLowerCase()) {
       case 'bajo':
-        return <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(34, 197, 94, 0.1)', color: 'var(--green)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 600 }}><CheckCircle size={14}/> Bajo Riesgo</span>;
+        return <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(34, 197, 94, 0.1)', color: 'var(--green)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap' }}><CheckCircle size={14}/> Bajo Riesgo</span>;
       case 'alto':
-        return <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--red)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 600 }}><AlertCircle size={14}/> Riesgo Alto</span>;
+        return <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--red)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap' }}><AlertCircle size={14}/> Riesgo Alto</span>;
       default:
-        return <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(234, 179, 8, 0.1)', color: 'var(--yellow)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 600 }}><AlertTriangle size={14}/> Riesgo Medio</span>;
+        return <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(234, 179, 8, 0.1)', color: 'var(--yellow)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap' }}><AlertTriangle size={14}/> Riesgo Medio</span>;
     }
   };
 
@@ -79,7 +79,7 @@ const History = () => {
   );
 
   return (
-    <div className="fade-in" style={{ maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="fade-in" style={{ maxWidth: '100%', margin: '0 auto', padding: '0 16px' }}>
       <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           <h1 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-1px', margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -90,7 +90,8 @@ const History = () => {
             Trazabilidad completa de las extracciones y pre-validaciones OCR.
           </p>
         </div>
-        <button onClick={fetchHistory} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+        <button onClick={fetchHistory} className="btn btn-secondary">
+           <RefreshCw size={18} />
            Actualizar Tabla
         </button>
       </header>
@@ -156,60 +157,53 @@ const History = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)', borderBottom: '1px solid var(--card-border)' }}>
-                  <th style={{ padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Fecha</th>
-                  <th style={{ padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Documento</th>
-                  <th style={{ padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Proveedor (Emisor)</th>
-                  <th style={{ padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Total CIF</th>
-                  <th style={{ padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Estado</th>
-                  <th style={{ padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Diagnóstico</th>
-                  <th style={{ padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Acciones</th>
+                  <th style={{ padding: '12px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', whiteSpace: 'nowrap' }}>Fecha</th>
+                  <th style={{ padding: '12px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Documento</th>
+                  <th style={{ padding: '12px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Proveedor (Emisor)</th>
+                  <th style={{ padding: '12px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', whiteSpace: 'nowrap' }}>Total CIF</th>
+                  <th style={{ padding: '12px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', whiteSpace: 'nowrap' }}>Estado</th>
+                  <th style={{ padding: '12px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', whiteSpace: 'nowrap' }}>Diagnóstico</th>
+                  <th style={{ padding: '12px', fontWeight: 600, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'center', whiteSpace: 'nowrap' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredHistory.map((record) => (
                   <tr key={record.id} style={{ borderBottom: '1px solid var(--card-border)', transition: 'background-color 0.2s' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                    <td style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                    <td style={{ padding: '12px', fontSize: '0.9rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
                       {new Date(record.fecha_analisis).toLocaleString()}
                     </td>
-                    <td style={{ padding: '16px 24px', fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <FileText size={16} color="var(--primary)" />
-                      {record.nombre_archivo}
+                    <td style={{ padding: '12px', fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)', wordBreak: 'break-word', verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <FileText size={16} color="var(--primary)" style={{ flexShrink: 0 }} />
+                        <span>{record.nombre_archivo}</span>
+                      </div>
                     </td>
-                    <td style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                    <td style={{ padding: '12px', fontSize: '0.9rem', color: 'var(--text-main)', wordBreak: 'break-word', verticalAlign: 'middle' }}>
                       {record.proveedor || 'No encontrado'}
                     </td>
-                    <td style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 500 }}>
+                    <td style={{ padding: '12px', fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 500, whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
                       ${record.total_cif?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
                     </td>
-                    <td style={{ padding: '16px 24px' }}>
+                    <td style={{ padding: '12px', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
                       <span style={{ 
                         padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600,
                         backgroundColor: record.estado === 'Aprobado (Validado)' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(0,0,0,0.05)',
-                        color: record.estado === 'Aprobado (Validado)' ? 'var(--green)' : 'var(--text-muted)'
+                        color: record.estado === 'Aprobado (Validado)' ? 'var(--green)' : 'var(--text-muted)',
+                        whiteSpace: 'nowrap'
                       }}>
                         {record.estado || 'En Revisión'}
                       </span>
                     </td>
-                    <td style={{ padding: '16px 24px' }}>
+                    <td style={{ padding: '12px', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
                       {getRiskBadge(record.riesgo)}
                     </td>
-                    <td style={{ padding: '16px 24px', display: 'flex', gap: '8px' }}>
-                       <button 
-                         onClick={() => navigate(`/factura/${record.id}/editar`, { state: { historyData: record } })}
-                         style={{ background: 'var(--primary-light)', border: '1px solid var(--primary)', cursor: 'pointer', color: 'var(--primary)', padding: '6px 10px', borderRadius: '6px', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, fontSize: '0.85rem' }}
-                         onMouseOver={(e) => { e.currentTarget.style.background = 'var(--primary)'; e.currentTarget.style.color = 'white'; }}
-                         onMouseOut={(e) => { e.currentTarget.style.background = 'var(--primary-light)'; e.currentTarget.style.color = 'var(--primary)'; }}
-                       >
-                         Ver / Editar
-                       </button>
+                    <td style={{ padding: '12px', textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                        <button 
                          onClick={() => { setDocToDelete(record); setShowDeleteModal(true); }}
-                         style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid transparent', cursor: 'pointer', color: 'var(--red)', padding: '6px 10px', borderRadius: '6px', transition: 'all 0.2s' }}
-                         onMouseOver={(e) => { e.currentTarget.style.background = 'var(--red)'; e.currentTarget.style.color = 'white'; }}
-                         onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; e.currentTarget.style.color = 'var(--red)'; }}
+                         className="btn btn-danger btn-sm"
                          title="Eliminar"
                        >
-                         <X size={18} />
+                         <Trash2 size={18} />
                        </button>
                     </td>
                   </tr>

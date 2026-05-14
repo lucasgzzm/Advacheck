@@ -151,21 +151,9 @@ const Register = () => {
           <button
             type="submit"
             disabled={loading}
+            className="btn btn-primary"
             style={{
               width: '100%',
-              padding: '14px',
-              backgroundColor: 'var(--primary)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '10px',
-              fontSize: '1rem',
-              fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px',
               opacity: loading ? 0.7 : 1
             }}
           >

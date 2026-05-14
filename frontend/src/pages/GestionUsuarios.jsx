@@ -120,7 +120,7 @@ const UserManagement = () => {
           </h1>
           <p style={{ color: 'var(--text-muted)', marginTop: '8px', fontSize: '1.05rem' }}>Administración de accesos, roles y seguridad de cuentas.</p>
         </div>
-        <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button className="btn btn-primary">
            Crear Analista
         </button>
       </header>
@@ -180,7 +180,7 @@ const UserManagement = () => {
               style={{ width: '100%', paddingLeft: '40px', fontSize: '0.9rem' }} 
             />
           </div>
-          <button onClick={fetchUsers} className="btn" style={{ padding: '10px', backgroundColor: 'transparent', border: '1px solid var(--card-border)' }}>
+          <button onClick={fetchUsers} className="btn btn-secondary">
              <RefreshCw size={18} />
           </button>
         </div>
@@ -241,8 +241,7 @@ const UserManagement = () => {
                               e.stopPropagation(); 
                               setActiveMenu(activeMenu === u.id ? null : u.id); 
                             }} 
-                            className="btn" 
-                            style={{ padding: '8px', backgroundColor: 'transparent' }}
+                            className="btn btn-secondary btn-sm"
                           >
                             <MoreVertical size={18} />
                           </button>

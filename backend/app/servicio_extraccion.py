@@ -84,3 +84,27 @@ class ExtractorService:
 
         return data
 
+    @staticmethod
+    async def cross_validate(files_bytes: List[bytes]) -> Dict[str, Any]:
+        """Extrae texto de múltiples PDFs y realiza validación cruzada."""
+        textos = []
+        for fb in files_bytes:
+            try:
+                txt = await OCRService.extract_text(fb)
+                textos.append(txt)
+            except Exception as e:
+                print(f"Error en Azure OCR para validación cruzada: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Fallo en la lectura de uno de los documentos. Detalle: {str(e)}"
+                )
+        
+        cross_validation_result = await AITextService.cross_validate_documents(textos)
+        
+        if not cross_validation_result:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="El servicio de análisis falló durante la validación cruzada."
+            )
+            
+        return cross_validation_result

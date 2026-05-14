@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, text
+from sqlalchemy import select, func, desc
 from typing import List
 
 from .. import esquemas, modelos
@@ -20,11 +20,9 @@ async def get_global_metrics(
 ):
     """Devuelve las métricas globales del sistema para el panel de administrador."""
 
-    # Total de documentos procesados
     total_res = await db.execute(select(func.count(modelos.DocumentoProcesado.id)))
     total = total_res.scalar() or 0
 
-    # Conteo por nivel de riesgo
     riesgo_alto_res = await db.execute(select(func.count(modelos.DocumentoProcesado.id)).filter(modelos.DocumentoProcesado.riesgo == "alto"))
     riesgo_alto = riesgo_alto_res.scalar() or 0
 
@@ -34,7 +32,6 @@ async def get_global_metrics(
     riesgo_bajo_res = await db.execute(select(func.count(modelos.DocumentoProcesado.id)).filter(modelos.DocumentoProcesado.riesgo == "bajo"))
     riesgo_bajo = riesgo_bajo_res.scalar() or 0
 
-    # Usuarios activos en la plataforma
     usuarios_res = await db.execute(select(func.count(modelos.Usuario.id)).filter(modelos.Usuario.activo == True))
     usuarios_activos = usuarios_res.scalar() or 0
 
@@ -74,7 +71,7 @@ async def get_all_users(
     """Lista todos los usuarios registrados con su rol."""
     result = await db.execute(select(modelos.Usuario))
     usuarios = result.scalars().all()
-    
+
     respuesta = []
     for u in usuarios:
         rol_res = await db.execute(select(modelos.Rol).filter(modelos.Rol.id == u.rol_id))
@@ -95,20 +92,28 @@ async def toggle_user_status(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(get_current_admin)
 ):
-    """Activa o desactiva la cuenta de un usuario."""
+    """Activa o desactiva la cuenta de un usuario y registra el evento en auditoría."""
     result = await db.execute(select(modelos.Usuario).filter(modelos.Usuario.id == u_id))
     user = result.scalars().first()
-    
+
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
+
     if user.id == admin.id:
         raise HTTPException(status_code=400, detail="No puedes bloquear tu propia cuenta.")
-        
+
     user.activo = not user.activo
+    nuevo_estado = "Activo" if user.activo else "Bloqueado"
+
+    log = modelos.Auditoria(
+        accion="Cambio de Estado de Usuario",
+        detalles=f"Usuario '{user.nombre}' ({user.email}) marcado como {nuevo_estado}.",
+        usuario_id=admin.id
+    )
+    db.add(log)
     await db.commit()
-    
-    return {"mensaje": f"Estado del usuario {user.nombre} actualizado a {'Activo' if user.activo else 'Bloqueado'}"}
+
+    return {"mensaje": f"Estado del usuario {user.nombre} actualizado a {nuevo_estado}"}
 
 
 @router.get("/roles")
@@ -128,7 +133,7 @@ async def change_user_role(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(get_current_admin)
 ):
-    """Cambia el rol de un usuario."""
+    """Cambia el rol de un usuario y registra el evento en auditoría."""
     result = await db.execute(select(modelos.Usuario).filter(modelos.Usuario.id == u_id))
     user = result.scalars().first()
     if not user:
@@ -143,7 +148,49 @@ async def change_user_role(
         raise HTTPException(status_code=404, detail="El rol especificado no existe")
 
     user.rol_id = rol_id
+
+    log = modelos.Auditoria(
+        accion="Cambio de Rol de Usuario",
+        detalles=f"Rol de '{user.nombre}' ({user.email}) actualizado a '{rol.nombre}'.",
+        usuario_id=admin.id
+    )
+    db.add(log)
     await db.commit()
-    
+
     return {"mensaje": f"Rol de {user.nombre} actualizado a {rol.nombre}"}
 
+
+@router.get("/auditoria")
+async def get_auditoria(
+    db: AsyncSession = Depends(get_db),
+    admin: modelos.Usuario = Depends(get_current_admin)
+):
+    """
+    Obtiene el log de auditoría completo.
+    Usa un JOIN eficiente para evitar el antipatrón N+1 queries.
+    """
+    result = await db.execute(
+        select(
+            modelos.Auditoria.id,
+            modelos.Auditoria.fecha_accion,
+            modelos.Auditoria.accion,
+            modelos.Auditoria.detalles,
+            modelos.Auditoria.usuario_id,
+            modelos.Usuario.nombre.label("usuario_nombre")
+        )
+        .join(modelos.Usuario, modelos.Auditoria.usuario_id == modelos.Usuario.id)
+        .order_by(desc(modelos.Auditoria.fecha_accion))
+    )
+    rows = result.mappings().all()
+
+    return [
+        {
+            "id": r["id"],
+            "fecha_accion": r["fecha_accion"].isoformat(),
+            "accion": r["accion"],
+            "detalles": r["detalles"],
+            "usuario_id": r["usuario_id"],
+            "usuario_nombre": r["usuario_nombre"]
+        }
+        for r in rows
+    ]

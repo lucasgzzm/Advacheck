@@ -8,7 +8,7 @@ from .modelos import Envio, Factura, FacturaDetalle
 ModelType = TypeVar("ModelType", bound=Base)
 
 
-class BaseRepository(Generic[ModelType]):
+class RepositorioBase(Generic[ModelType]):
     """
     Repositorio genérico que encapsula las operaciones básicas de base de datos
     (obtener por ID, listar todos, agregar) para cualquier modelo ORM.
@@ -17,17 +17,17 @@ class BaseRepository(Generic[ModelType]):
         self.model = model
         self.db = db_session
 
-    async def get_by_id(self, id: int) -> Optional[ModelType]:
+    async def obtener_por_id(self, id: int) -> Optional[ModelType]:
         """Obtiene un registro por su ID."""
         result = await self.db.execute(select(self.model).filter(self.model.id == id))
         return result.scalars().first()
 
-    async def get_all(self, skip: int = 0, limit: int = 100) -> List[ModelType]:
+    async def obtener_todos(self, skip: int = 0, limit: int = 100) -> List[ModelType]:
         """Lista registros con paginación."""
         result = await self.db.execute(select(self.model).offset(skip).limit(limit))
         return result.scalars().all()
 
-    async def add(self, entity: ModelType) -> ModelType:
+    async def agregar(self, entity: ModelType) -> ModelType:
         """Agrega un nuevo registro a la sesión y obtiene su ID generado."""
         self.db.add(entity)
         await self.db.flush()
@@ -35,15 +35,15 @@ class BaseRepository(Generic[ModelType]):
         return entity
 
 
-class EnvioRepository(BaseRepository[Envio]):
+class EnvioRepository(RepositorioBase[Envio]):
     def __init__(self, db_session: AsyncSession):
         super().__init__(Envio, db_session)
 
-class FacturaRepository(BaseRepository[Factura]):
+class FacturaRepository(RepositorioBase[Factura]):
     def __init__(self, db_session: AsyncSession):
         super().__init__(Factura, db_session)
 
-class FacturaDetalleRepository(BaseRepository[FacturaDetalle]):
+class FacturaDetalleRepository(RepositorioBase[FacturaDetalle]):
     def __init__(self, db_session: AsyncSession):
         super().__init__(FacturaDetalle, db_session)
 

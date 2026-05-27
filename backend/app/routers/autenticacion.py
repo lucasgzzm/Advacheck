@@ -1,189 +1,132 @@
-from datetime import timedelta
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import esquemas, modelos
+from ..servicio_auditoria import registrar_auditoria
 from ..base_datos import get_db
 from ..seguridad import (
-    verify_password, 
-    create_access_token, 
-    ACCESS_TOKEN_EXPIRE_MINUTES,
-    ACCESS_TOKEN_EXPIRE_DAYS_REMEMBER,
-    decode_access_token,
-    get_password_hash
+    crear_token_acceso,
+    decodificar_token,
+    generar_hash,
+    obtener_expiracion,
+    pwd_context,
+    verificar_password,
 )
-from fastapi.security import OAuth2PasswordBearer
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
-
-router = APIRouter(
-    prefix="/api/auth",
-    tags=["Autenticación"]
+from ..dependencias import (
+    obtener_usuario_actual,
+    obtener_rol_usuario,
+    usuarios_conectados,
 )
+
+router = APIRouter(prefix="/api/auth", tags=["Autenticación"])
 
 
 @router.post("/login", response_model=esquemas.Token)
-async def login(login_req: esquemas.LoginRequest, db: AsyncSession = Depends(get_db)):
-    """Inicia sesión y devuelve un token JWT."""
-    # Buscar usuario por email
-    result = await db.execute(select(modelos.Usuario).filter(modelos.Usuario.email == login_req.email))
-    user = result.scalars().first()
-    
-    # Validar credenciales
-    if not user or not verify_password(login_req.password, user.hashed_password):
+async def iniciar_sesion(
+    login_req: esquemas.LoginRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Autentica un usuario y devuelve un token JWT."""
+    resultado = await db.execute(
+        select(modelos.Usuario).filter(modelos.Usuario.email == login_req.email)
+    )
+    usuario = resultado.scalars().first()
+
+    if not usuario or not verificar_password(login_req.password, usuario.contrasena_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    # Verificar que la cuenta esté activa
-    if not user.activo:
+
+    if pwd_context.needs_update(usuario.contrasena_hash):
+        usuario.contrasena_hash = generar_hash(login_req.password)
+
+    if not usuario.activo:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Tu cuenta ha sido desactivada"
+            detail="Tu cuenta ha sido desactivada",
         )
-    
-    # Determinar duración del token según "Recordarme"
-    if login_req.remember:
-        expires_delta = timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS_REMEMBER)
-    else:
-        expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    # Obtener nombre del rol para incluirlo en el token
-    result_rol = await db.execute(select(modelos.Rol).filter(modelos.Rol.id == user.rol_id))
-    rol = result_rol.scalars().first()
-    
-    access_token = create_access_token(
-        data={"sub": user.email, "role": rol.nombre if rol else "Normal"},
-        expires_delta=expires_delta
+
+    rol = await obtener_rol_usuario(usuario, db)
+    expiracion = obtener_expiracion(login_req.remember)
+    access_token = crear_token_acceso(
+        datos={"sub": usuario.email, "role": rol},
+        expiracion=expiracion,
     )
 
-    # Auditoría: registrar el inicio de sesión
-    log = modelos.Auditoria(
-        accion="Inicio de Sesión",
-        detalles=f"El usuario '{user.nombre}' ({user.email}) inició sesión correctamente.",
-        usuario_id=user.id
-    )
-    db.add(log)
+    await registrar_auditoria(db, usuario.id, "Inicio de Sesión", f"El usuario '{usuario.nombre}' ({usuario.email}) inició sesión correctamente.")
     await db.commit()
-    
+
+    usuarios_conectados[usuario.id] = datetime.now()
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user_name": user.nombre,
-        "user_role": rol.nombre if rol else "Normal"
+        "user_name": usuario.nombre,
+        "user_role": rol,
     }
 
 
 @router.post("/register", response_model=esquemas.Token, status_code=status.HTTP_201_CREATED)
-async def register(req: esquemas.RegisterRequest, db: AsyncSession = Depends(get_db)):
-    """Registra un nuevo usuario y devuelve un token JWT para auto-login."""
-    # Verificar si el email ya existe
-    result = await db.execute(select(modelos.Usuario).filter(modelos.Usuario.email == req.email))
-    existing_user = result.scalars().first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El correo electrónico ya está registrado en el sistema."
-        )
-    
-    # Asignar rol por defecto (Agente)
-    result_rol = await db.execute(select(modelos.Rol).filter(modelos.Rol.nombre == "Agente"))
-    default_role = result_rol.scalars().first()
-    if not default_role:
-        result_rol = await db.execute(select(modelos.Rol).filter(modelos.Rol.nombre != "Administrador").limit(1))
-        default_role = result_rol.scalars().first()
-    
-    # Crear el usuario
-    nuevo_usuario = modelos.Usuario(
-        nombre=req.nombre,
-        email=req.email,
-        hashed_password=get_password_hash(req.password),
-        activo=True,
-        rol_id=default_role.id if default_role else 1
+async def registrar(
+    req: esquemas.RegisterRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Registro público inhabilitado intencionalmente."""
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="El registro público no está disponible. Contacta al administrador.",
     )
-    
-    db.add(nuevo_usuario)
-    await db.commit()
-    await db.refresh(nuevo_usuario)
-    
-    # Generar token para auto-login
-    expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": nuevo_usuario.email, "role": default_role.nombre if default_role else "Normal"},
-        expires_delta=expires_delta
-    )
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user_name": nuevo_usuario.nombre,
-        "user_role": default_role.nombre if default_role else "Normal"
-    }
 
 
-# --- Funciones de dependencia para proteger rutas ---
-
-async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
-    """Extrae el usuario actual a partir del token JWT enviado en la cabecera."""
-    payload = decode_access_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token de acceso inválido",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    email: str = payload.get("sub")
-    if email is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="El token no contiene identificación")
-    
-    result = await db.execute(select(modelos.Usuario).filter(modelos.Usuario.email == email))
-    user = result.scalars().first()
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
-    return user
-
-
-async def get_current_admin(current_user: modelos.Usuario = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Verifica que el usuario actual tenga rol de Administrador."""
-    result = await db.execute(select(modelos.Rol).filter(modelos.Rol.id == current_user.rol_id))
-    rol = result.scalars().first()
-    
-    if not rol or rol.nombre != "Administrador":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes privilegios suficientes para esta acción."
-        )
-    return current_user
+@router.post("/logout")
+async def cerrar_sesion(
+    usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
+):
+    """Elimina al usuario de la lista de conectados."""
+    usuarios_conectados.pop(usuario_actual.id, None)
+    return {"mensaje": "Sesión cerrada"}
 
 
 @router.get("/me", response_model=esquemas.UserResponse)
-async def get_profile(user: modelos.Usuario = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Devuelve los datos del perfil del usuario autenticado."""
-    result_rol = await db.execute(select(modelos.Rol).filter(modelos.Rol.id == user.rol_id))
-    rol = result_rol.scalars().first()
-    
+async def obtener_perfil(
+    usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
+    db: AsyncSession = Depends(get_db),
+):
+    """Devuelve los datos del usuario autenticado."""
+    rol = await obtener_rol_usuario(usuario_actual, db)
     return {
-        "nombre": user.nombre,
-        "email": user.email,
-        "rol_nombre": rol.nombre if rol else "Agente",
-        "activo": user.activo
+        "id": usuario_actual.id,
+        "nombre": usuario_actual.nombre,
+        "email": usuario_actual.email,
+        "rol_nombre": rol,
+        "activo": usuario_actual.activo,
     }
 
 
 @router.post("/change-password")
-async def change_password(req: esquemas.PasswordChangeRequest, user: modelos.Usuario = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Permite al usuario cambiar su contraseña."""
+async def cambiar_password(
+    req: esquemas.PasswordChangeRequest,
+    usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cambia la contraseña del usuario autenticado."""
     if req.new_password != req.confirm_password:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Las nuevas contraseñas no coinciden")
-    
-    if not verify_password(req.current_password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="La contraseña actual es incorrecta")
-    
-    user.hashed_password = get_password_hash(req.new_password)
-    await db.commit()
-    
-    return {"message": "Contraseña actualizada exitosamente"}
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Las nuevas contraseñas no coinciden",
+        )
 
+    if not verificar_password(req.current_password, usuario_actual.contrasena_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="La contraseña actual es incorrecta",
+        )
+
+    usuario_actual.contrasena_hash = generar_hash(req.new_password)
+    await db.commit()
+    return {"message": "Contraseña actualizada exitosamente"}

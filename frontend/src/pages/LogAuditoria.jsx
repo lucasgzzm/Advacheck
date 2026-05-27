@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { API_BASE } from '../services/api';
 import { Activity, Search, RefreshCw, Clock, User, ShieldCheck, Trash2, FileCheck, LogIn, Shield } from 'lucide-react';
 
 // Configuración de badges por tipo de acción — fácil de extender
@@ -14,6 +15,7 @@ const ACTION_CONFIG = {
 
 const DEFAULT_CONFIG = { color: 'var(--text-muted)', bg: 'rgba(0,0,0,0.05)', icon: Activity };
 
+// Renderiza una insignia con ícono y color según el tipo de acción de auditoría
 const ActionBadge = ({ accion }) => {
   const cfg = ACTION_CONFIG[accion] || DEFAULT_CONFIG;
   const Icon = cfg.icon;
@@ -30,6 +32,7 @@ const ActionBadge = ({ accion }) => {
   );
 };
 
+// Componente principal: bitácora de auditoría con filtros, búsqueda y paginación
 const AuditLog = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,12 +42,13 @@ const AuditLog = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
+  // Obtiene los registros de auditoría desde el servidor
   const fetchLogs = async () => {
     try {
       setLoading(true);
       setError(null);
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const response = await fetch('http://127.0.0.1:8000/api/admin/auditoria', {
+      const response = await fetch(`${API_BASE}/api/admin/auditoria`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) {

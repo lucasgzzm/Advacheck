@@ -7,7 +7,7 @@ sys.path.append(os.getcwd())
 from sqlalchemy import text
 from app.base_datos import engine, Base
 from app.modelos import Rol, Usuario
-from app.seguridad import get_password_hash
+from app.seguridad import generar_hash
 
 
 async def reset_database():
@@ -39,7 +39,7 @@ async def reset_database():
         
         admin_email = "admin@webcheck.com"
         admin_pass = "admin123"
-        hashed = get_password_hash(admin_pass)
+        hashed = generar_hash(admin_pass)
         
         await conn.execute(text("""
             INSERT INTO usuarios (nombre, email, hashed_password, rol_id, activo)

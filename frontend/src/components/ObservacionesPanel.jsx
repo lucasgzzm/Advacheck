@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, Send, User, Clock, AlertTriangle, FileEdit, StickyNote } from 'lucide-react';
+import { peticionGet, peticionPost } from '../services/api';
 
 const TIPO_CONFIG = {
   nota:       { label: 'Nota', color: 'var(--primary)', bg: 'rgba(59,130,246,0.08)', icon: StickyNote },
@@ -7,6 +8,7 @@ const TIPO_CONFIG = {
   correccion: { label: 'Corrección', color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', icon: FileEdit },
 };
 
+// Panel de observaciones con formulario para agregar notas, alertas o correcciones
 const ObservacionesPanel = ({ documentoId }) => {
   const [observaciones, setObservaciones] = useState([]);
   const [contenido, setContenido] = useState('');
@@ -14,15 +16,12 @@ const ObservacionesPanel = ({ documentoId }) => {
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
 
-  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-
+  // Carga las observaciones del documento desde la API
   const fetchObservaciones = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`http://127.0.0.1:8000/api/facturas/${documentoId}/observaciones`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) setObservaciones(await res.json());
+      const data = await peticionGet(`/api/documentos/${documentoId}/observaciones`);
+      setObservaciones(data);
     } catch (err) {
       console.error('Error cargando observaciones:', err);
     } finally {
@@ -34,25 +33,19 @@ const ObservacionesPanel = ({ documentoId }) => {
     if (documentoId) fetchObservaciones();
   }, [documentoId]);
 
+  // Envía una nueva observación al servidor
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!contenido.trim()) return;
 
     setEnviando(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/facturas/${documentoId}/observaciones`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ contenido: contenido.trim(), tipo })
+      await peticionPost(`/api/documentos/${documentoId}/observaciones`, {
+        contenido: contenido.trim(),
+        tipo,
       });
-
-      if (res.ok) {
-        setContenido('');
-        fetchObservaciones();
-      }
+      setContenido('');
+      fetchObservaciones();
     } catch (err) {
       console.error('Error enviando observación:', err);
     } finally {
@@ -61,8 +54,7 @@ const ObservacionesPanel = ({ documentoId }) => {
   };
 
   return (
-    <div className="glass-panel" style={{ marginTop: '24px' }}>
-      {/* Encabezado */}
+    <div className="glass-panel" style={{ marginTop: '0px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--card-border)' }}>
         <div style={{ padding: '8px', borderRadius: '8px', backgroundColor: 'rgba(59,130,246,0.1)' }}>
           <MessageSquare size={20} color="var(--primary)" />
@@ -75,7 +67,6 @@ const ObservacionesPanel = ({ documentoId }) => {
         </div>
       </div>
 
-      {/* Formulario para nueva observación */}
       <form onSubmit={handleSubmit} style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
           {Object.entries(TIPO_CONFIG).map(([key, cfg]) => {
@@ -124,7 +115,6 @@ const ObservacionesPanel = ({ documentoId }) => {
         </div>
       </form>
 
-      {/* Lista de observaciones */}
       {loading ? (
         <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>Cargando...</p>
       ) : observaciones.length === 0 ? (

@@ -7,11 +7,13 @@ from .base_datos import Base
 # --- Enumeraciones para estados tipificados ---
 
 class NivelRiesgo(str, enum.Enum):
+    """Niveles de riesgo para clasificar operaciones (bajo, medio, alto)."""
     BAJO = "bajo"
     MEDIO = "medio"
     ALTO = "alto"
 
 class EstadoEnvio(str, enum.Enum):
+    """Estados posibles de un envío durante su ciclo de vida."""
     REVISION = "en_revision"
     APROBADO = "aprobado"
     OBSERVADO = "observado"
@@ -37,7 +39,7 @@ class Usuario(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(150), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
+    contrasena_hash = Column("hashed_password", String(255), nullable=False)
     activo = Column(Boolean, default=True)
     
     # Relación con el rol asignado
@@ -48,13 +50,21 @@ class Usuario(Base):
 
 
 class Cliente(Base):
-    """Registro de operadores comerciales o importadores."""
+    """Registro de importadores/exportadores (cartera de clientes del agente)."""
     __tablename__ = "clientes"
 
     id = Column(Integer, primary_key=True, index=True)
-    razon_social = Column(String(255), unique=True, index=True, nullable=False)
-    identificacion_fiscal = Column(String(50), unique=True, nullable=False)
+    razon_social = Column(String(255), nullable=False)
+    identificacion_fiscal = Column(String(50), index=True, nullable=False)
     direccion = Column(String(500), nullable=True)
+    email = Column(String(255), nullable=True)
+    telefono = Column(String(50), nullable=True)
+    contacto_nombre = Column(String(255), nullable=True)
+    activo = Column(Boolean, default=True)
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+
+    usuario_rel = relationship("Usuario")
 
     envios_rel = relationship("Envio", back_populates="cliente_rel")
 
@@ -142,11 +152,36 @@ class DocumentoProcesado(Base):
     total_cif = Column(Float, nullable=True)
     riesgo = Column(String(50), nullable=True)
     estado = Column(String(50), default="En Revisión")
+    bloqueado = Column(Boolean, default=False)
+    fecha_bloqueo = Column(DateTime, nullable=True)
+    bloqueado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     
     # ID del usuario que procesó el documento
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
-    usuario_rel = relationship("Usuario")
+    usuario_rel = relationship("Usuario", foreign_keys=[usuario_id])
     observaciones_rel = relationship("Observacion", back_populates="documento_rel", cascade="all, delete-orphan")
+    notificaciones_rel = relationship("Notificacion", back_populates="documento_rel", cascade="all, delete-orphan")
+    ruta_archivo = Column(String(512), nullable=True)
+    estado_aduanero = Column(String(50), default="En Revision")
+    fecha_presentacion = Column(DateTime, nullable=True)
+    fecha_aforo_documental = Column(DateTime, nullable=True)
+    fecha_aforo_fisico = Column(DateTime, nullable=True)
+    fecha_liquidacion = Column(DateTime, nullable=True)
+    fecha_liberacion = Column(DateTime, nullable=True)
+    bloqueado_por_rel = relationship("Usuario", foreign_keys=[bloqueado_por_id])
+    
+    # Columnas financieras para landed cost
+    flete = Column(Float, nullable=True)
+    seguro = Column(Float, nullable=True)
+    otros = Column(Float, nullable=True)
+
+    dua_generado = Column(Boolean, default=False)
+
+    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=True)
+    cliente_rel = relationship("Cliente")
+
+    despachante_id = Column(Integer, ForeignKey("despachantes.id"), nullable=True)
+    despachante_rel = relationship("Despachante", back_populates="documentos_rel")
 
 
 class Observacion(Base):
@@ -180,6 +215,26 @@ class CatalogoPartida(Base):
     usuario_rel = relationship("Usuario")
 
 
+class VistoBueno(Base):
+    """Regulaciones y Restricciones No Arancelarias (RRNA) requeridas por partida.
+    Cada documento puede requerir múltiples V°B° de distintas entidades regulatorias."""
+    __tablename__ = "vistos_buenos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    entidad = Column(String(100), nullable=False)  # ej: COFEPRIS, ISP, SENASA, SCT, IFT
+    tipo_permiso = Column(String(100), nullable=False)  # ej: Certificado Sanitario, Registro Sanitario, Permiso Ambiental
+    estado = Column(String(50), default="pendiente")  # pendiente, aprobado, rechazado, no_requerido
+    fecha_gestion = Column(DateTime, nullable=True)
+    observaciones = Column(String(1000), nullable=True)
+    archivo_nombre = Column(String(255), nullable=True)
+
+    documento_id = Column(Integer, ForeignKey("documentos_procesados.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+
+    documento_rel = relationship("DocumentoProcesado", backref="vistos_buenos_rel")
+    usuario_rel = relationship("Usuario")
+
+
 class Notificacion(Base):
     """Notificaciones in-app para comunicación entre admin y analistas."""
     __tablename__ = "notificaciones"
@@ -193,6 +248,7 @@ class Notificacion(Base):
     
     # Enlace opcional al documento relacionado
     documento_id = Column(Integer, ForeignKey("documentos_procesados.id"), nullable=True)
+    documento_rel = relationship("DocumentoProcesado", back_populates="notificaciones_rel")
     
     # A quién va dirigida
     usuario_destino_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
@@ -201,4 +257,72 @@ class Notificacion(Base):
     
     usuario_destino_rel = relationship("Usuario", foreign_keys=[usuario_destino_id])
     usuario_origen_rel = relationship("Usuario", foreign_keys=[usuario_origen_id])
+
+
+class Garantia(Base):
+    """Garantías, pólizas o seguros vinculados a un documento aduanero."""
+    __tablename__ = "garantias"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tipo = Column(String(50), nullable=False)  # Poliza, Seguro, Boleta, Garantia
+    numero = Column(String(100), nullable=False)
+    monto = Column(Float, nullable=False)
+    moneda = Column(String(10), default="USD")
+    fecha_emision = Column(DateTime, nullable=True)
+    fecha_vencimiento = Column(DateTime, nullable=True)
+    estado = Column(String(50), default="Vigente")  # Vigente, Vencida, Ejecutada
+    emisor = Column(String(255), nullable=True)
+    observaciones = Column(String(1000), nullable=True)
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+
+    documento_id = Column(Integer, ForeignKey("documentos_procesados.id"), nullable=False)
+    documento_rel = relationship("DocumentoProcesado", backref="garantias_rel")
+
+
+class Partida(Base):
+    """Ítems/líneas de un documento procesado."""
+    __tablename__ = "partidas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    documento_id = Column(Integer, ForeignKey("documentos_procesados.id"), nullable=False)
+    descripcion = Column(String(500), nullable=True)
+    cantidad = Column(Float, nullable=True)
+    precio_unitario = Column(Float, nullable=True)
+    partida_sugerida = Column(String(50), nullable=True)
+    partida_corregida = Column(String(50), nullable=True)
+    orden = Column(Integer, nullable=True)
+
+    documento_rel = relationship("DocumentoProcesado", backref="partidas")
+
+
+class Despachante(Base):
+    """Agentes de aduana / despachantes vinculados a documentos."""
+    __tablename__ = "despachantes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(255), nullable=False)
+    rut = Column(String(50), nullable=True)
+    telefono = Column(String(50), nullable=True)
+    email = Column(String(255), nullable=True)
+    direccion = Column(String(500), nullable=True)
+    activo = Column(Boolean, default=True)
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+
+    documentos_rel = relationship("DocumentoProcesado", back_populates="despachante_rel")
+
+
+class ReglaConfiguracion(Base):
+    """Configuración dinámica de reglas del motor de validación aduanera."""
+    __tablename__ = "reglas_configuracion"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre_regla = Column(String(100), unique=True, nullable=False, index=True)
+    nombre_mostrar = Column(String(255), nullable=False)
+    descripcion = Column(String(1000), nullable=True)
+    activa = Column(Boolean, default=True)
+    severidad = Column(String(50), default="BLOQUEANTE", nullable=False)
+    parametros = Column(String(2000), nullable=True)
+    ultima_modificacion = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modificado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    modificado_por_rel = relationship("Usuario")
 

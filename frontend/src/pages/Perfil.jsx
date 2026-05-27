@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../services/api';
 import { useAuth } from '../context/ContextoAuth';
 import { User, Shield, Lock, Save, AlertCircle, CheckCircle2 } from 'lucide-react';
 
+// Componente principal: perfil del usuario con información personal y cambio de contraseña
 const Profile = () => {
   const { user } = useAuth();
   const [profileData, setProfileData] = useState(null);
@@ -18,10 +20,11 @@ const Profile = () => {
     fetchProfile();
   }, []);
 
+  // Obtiene los datos del perfil del usuario desde el servidor
   const fetchProfile = async () => {
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const response = await fetch('http://127.0.0.1:8000/api/auth/me', {
+const response = await fetch(`${API_BASE}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -35,6 +38,7 @@ const Profile = () => {
     }
   };
 
+  // Cambia la contraseña del usuario validando los campos del formulario
   const handlePasswordChange = async (e) => {
     e.preventDefault();
     setMessage({ type: '', text: '' });
@@ -47,7 +51,7 @@ const Profile = () => {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const response = await fetch('http://127.0.0.1:8000/api/auth/change-password', {
+const response = await fetch(`${API_BASE}/api/auth/change-password`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -85,6 +89,7 @@ const Profile = () => {
   };
 
   // Mapeo amigable de roles solicitado por el usuario
+  // Convierte el nombre del rol a una versión amigable y corta
   const getFriendlyRole = (role) => {
     if (!role) return 'Usuario';
     const r = role.toLowerCase();

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../services/api';
 import { Building2, Search, RefreshCw, AlertTriangle, AlertCircle, CheckCircle, TrendingUp, DollarSign } from 'lucide-react';
 
 const NIVEL_CONFIG = {
@@ -8,6 +9,7 @@ const NIVEL_CONFIG = {
   confiable: { label: 'Confiable',  color: 'var(--green)',  bg: 'rgba(34,197,94,0.1)',  icon: CheckCircle },
 };
 
+// Renderiza una insignia con el nivel de riesgo del proveedor
 const NivelBadge = ({ nivel }) => {
   const cfg = NIVEL_CONFIG[nivel] || NIVEL_CONFIG.moderado;
   const Icon = cfg.icon;
@@ -23,17 +25,19 @@ const NivelBadge = ({ nivel }) => {
   );
 };
 
+// Componente principal: muestra tabla con perfiles de riesgo de proveedores
 const PerfilProveedores = () => {
   const [proveedores, setProveedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Obtiene los perfiles de proveedores desde el servidor
   const fetchProveedores = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const res = await fetch('http://127.0.0.1:8000/api/facturas/proveedores/perfiles', {
+      const res = await fetch(`${API_BASE}/api/documentos/proveedores/perfiles`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Error al obtener perfiles de proveedores.');
@@ -123,11 +127,41 @@ const PerfilProveedores = () => {
                       </div>
                     </td>
                     <td style={{ padding: '14px 24px', fontWeight: 700, fontSize: '1.1rem', textAlign: 'center' }}>{p.total_operaciones}</td>
-                    <td style={{ padding: '14px 24px' }}>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        {p.riesgo_alto > 0 && <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--red)' }}>🔴 {p.riesgo_alto}</span>}
-                        {p.riesgo_medio > 0 && <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f59e0b' }}>🟡 {p.riesgo_medio}</span>}
-                        {p.riesgo_bajo > 0 && <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--green)' }}>🟢 {p.riesgo_bajo}</span>}
+                    <td style={{ padding: '14px 24px', minWidth: '180px' }}>
+                      <div style={{
+                        display: 'flex', height: '28px', borderRadius: '6px', overflow: 'hidden',
+                        backgroundColor: 'rgba(0,0,0,0.06)', position: 'relative',
+                      }}>
+                        {p.riesgo_alto > 0 && (
+                          <div style={{
+                            width: `${(p.riesgo_alto / (p.riesgo_alto + p.riesgo_medio + p.riesgo_bajo)) * 100}%`,
+                            backgroundColor: 'var(--red)', transition: 'width 0.4s',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            minWidth: 'fit-content', padding: '0 6px',
+                          }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fff', lineHeight: 1, whiteSpace: 'nowrap' }}>{p.riesgo_alto}</span>
+                          </div>
+                        )}
+                        {p.riesgo_medio > 0 && (
+                          <div style={{
+                            width: `${(p.riesgo_medio / (p.riesgo_alto + p.riesgo_medio + p.riesgo_bajo)) * 100}%`,
+                            backgroundColor: '#f59e0b', transition: 'width 0.4s',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            minWidth: 'fit-content', padding: '0 6px',
+                          }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fff', lineHeight: 1, whiteSpace: 'nowrap' }}>{p.riesgo_medio}</span>
+                          </div>
+                        )}
+                        {p.riesgo_bajo > 0 && (
+                          <div style={{
+                            width: `${(p.riesgo_bajo / (p.riesgo_alto + p.riesgo_medio + p.riesgo_bajo)) * 100}%`,
+                            backgroundColor: 'var(--green)', transition: 'width 0.4s',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            minWidth: 'fit-content', padding: '0 6px',
+                          }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fff', lineHeight: 1, whiteSpace: 'nowrap' }}>{p.riesgo_bajo}</span>
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td style={{ padding: '14px 24px', fontWeight: 700, textAlign: 'center',

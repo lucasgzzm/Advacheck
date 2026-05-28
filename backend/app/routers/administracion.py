@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, update, delete, text
+from sqlalchemy import select, func, desc, update, delete
 from sqlalchemy.orm import selectinload
 from typing import List
 import json
@@ -501,19 +501,4 @@ async def cambiar_umbral_regla(
     }
 
 
-@router.get("/setup", tags=["Temporal"])
-async def setup_inicial(db: AsyncSession = Depends(get_db)):
-    """Temporal: crea roles y admin inicial. BORRAR DESPUÉS DE USAR."""
-    await db.execute(text("""
-        INSERT INTO roles (nombre, descripcion)
-        VALUES ('Administrador', 'Acceso total'), ('Agente', 'Carga y validacion')
-        ON CONFLICT (nombre) DO NOTHING;
-    """))
-    await db.execute(text("""
-        INSERT INTO usuarios (nombre, email, hashed_password, rol_id, activo)
-        VALUES ('Administrador WebCheck', 'admin@webcheck.com', :pw,
-                (SELECT id FROM roles WHERE nombre = 'Administrador'), true)
-        ON CONFLICT (email) DO NOTHING;
-    """), {"pw": generar_hash("admin123")})
-    await db.commit()
-    return {"mensaje": "Admin creado: admin@webcheck.com / admin123"}
+

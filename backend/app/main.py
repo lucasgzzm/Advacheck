@@ -1,5 +1,7 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .base_datos import engine, Base
 from . import modelos
@@ -30,6 +32,10 @@ app.include_router(garantias.router)
 app.include_router(despachantes.router)
 app.include_router(clientes.router)
 
+
+STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+if os.path.isdir(STATIC_DIR):
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
 
 @app.on_event("startup")
 async def iniciar():

@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Boolean, Enum
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 import enum
 from .base_datos import Base
 
@@ -69,8 +69,18 @@ class Cliente(Base):
     envios_rel = relationship("Envio", back_populates="cliente_rel")
 
 
+# ─── DEPRECATED MODELS ──────────────────────────────────────────────
+# Las tablas envios, facturas y factura_detalles corresponden a la
+# versión anterior del sistema (antes de la migración a DocumentoProcesado/Partida).
+# Se mantienen para no romper queries históricas, pero no se usan en
+# nueva funcionalidad. Migrar datos existentes cuando sea posible.
+
+
 class Envio(Base):
-    """Cabecera logística que agrupa una o varias facturas de importación."""
+    """[DEPRECATED] Cabecera logística que agrupa una o varias facturas de importación.
+    
+    Usar DocumentoProcesado en lugar de esta tabla para toda funcionalidad nueva.
+    """
     __tablename__ = "envios"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -85,7 +95,10 @@ class Envio(Base):
 
 
 class Factura(Base):
-    """Cabecera del documento comercial (factura de importación)."""
+    """[DEPRECATED] Cabecera del documento comercial (factura de importación).
+    
+    Usar DocumentoProcesado en lugar de esta tabla para toda funcionalidad nueva.
+    """
     __tablename__ = "facturas"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -107,7 +120,10 @@ class Factura(Base):
 
 
 class FacturaDetalle(Base):
-    """Líneas individuales (ítems/productos) dentro de una factura."""
+    """[DEPRECATED] Líneas individuales (ítems/productos) dentro de una factura.
+    
+    Usar Partida en lugar de esta tabla para toda funcionalidad nueva.
+    """
     __tablename__ = "factura_detalles"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -292,7 +308,7 @@ class Partida(Base):
     partida_corregida = Column(String(50), nullable=True)
     orden = Column(Integer, nullable=True)
 
-    documento_rel = relationship("DocumentoProcesado", backref="partidas")
+    documento_rel = relationship("DocumentoProcesado", backref=backref("partidas", cascade="all, delete-orphan"))
 
 
 class Despachante(Base):

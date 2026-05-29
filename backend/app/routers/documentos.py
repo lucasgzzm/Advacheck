@@ -10,10 +10,10 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from .. import esquemas, modelos
-from ..servicio_auditoria import registrar_auditoria
+from ..services.servicio_auditoria import registrar_auditoria
 from ..base_datos import get_db
 from ..dependencias import obtener_usuario_actual, obtener_rol_usuario, obtener_documento_seguro
-from ..servicio_archivo_intercambio import generar_xml_intercambio, generar_json_intercambio
+from ..services.servicio_archivo_intercambio import generar_xml_intercambio, generar_json_intercambio
 from ..config import UPLOAD_DIR
 
 router = APIRouter(prefix="/api/documentos", tags=["Documentos"])

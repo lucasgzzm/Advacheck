@@ -12,7 +12,6 @@ import HistorialGlobal from './pages/HistorialGlobal';
 import GestionUsuarios from './pages/GestionUsuarios';
 import LogAuditoria from './pages/LogAuditoria';
 import PerfilProveedores from './pages/PerfilProveedores';
-import ValidacionCruzada from './pages/ValidacionCruzada';
 import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './context/ContextoAuth';
 
@@ -44,14 +43,12 @@ function RutasProtegidas() {
             <Route path="/proveedores" element={<PerfilProveedores />} />
             <Route path="/auditoria" element={<LogAuditoria />} />
             <Route path="/usuarios" element={<GestionUsuarios />} />
-            <Route path="/validacion" element={<ValidacionCruzada />} />
           </>
         ) : (
           <>
             <Route path="/" element={<PanelPrincipal />} />
             <Route path="/clientes" element={<GestionClientes />} />
             <Route path="/historial" element={<Historial />} />
-            <Route path="/validacion" element={<ValidacionCruzada />} />
           </>
         )}
 

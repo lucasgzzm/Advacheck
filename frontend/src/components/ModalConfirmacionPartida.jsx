@@ -10,7 +10,7 @@ const ENTIDAD_COLORS = {
   SUBTEL: '#0891b2', MINTRANS: '#4f46e5', INN: '#6b7280',
 };
 
-const v = (name) => `var(--${name})`;
+import { cssVar as v } from '../lib/utils';
 
 // Modal para confirmar partida arancelaria y seleccionar entidades regulatorias aplicables
 export default function ModalConfirmacionPartida({

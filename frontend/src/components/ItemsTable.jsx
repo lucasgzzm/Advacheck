@@ -2,8 +2,7 @@ import React from 'react';
 import { Package, ChevronUp, ChevronDown, XCircle, ShieldAlert, CheckCircle, Upload } from 'lucide-react';
 import AsistenteClasificacionArancelaria from './AsistenteClasificacionArancelaria';
 
-// Helper para acceder a variables CSS
-const v = (name) => `var(--${name})`;
+import { cssVar as v } from '../lib/utils';
 
 export default function ItemsTable({
   items, bloqueado, camposMod, open,

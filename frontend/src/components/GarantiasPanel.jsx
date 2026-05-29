@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE } from '../services/api';
 import { Shield, Plus, Trash2, AlertCircle, Calendar, DollarSign, Building, FileText, X, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 
-const v = (name) => `var(--${name})`;
+import { cssVar as v } from '../lib/utils';
 
 const ESTADOS_GARANTIA = [
   { value: 'Vigente', color: v('green'), bg: 'rgba(16,185,129,0.1)' },

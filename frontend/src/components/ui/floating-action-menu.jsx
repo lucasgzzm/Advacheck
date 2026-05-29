@@ -59,10 +59,15 @@ const FloatingActionMenu = ({
               left: '50%', 
               display: 'flex', 
               flexDirection: 'column', 
-              gap: '6px', 
+              gap: '4px', 
               alignItems: 'flex-start', 
               width: '200px',
-              zIndex: 10 
+              zIndex: 10,
+              backgroundColor: 'var(--card-bg)',
+              border: '1px solid var(--card-border)',
+              borderRadius: '14px',
+              padding: '6px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.15)'
             }}
           >
             {options.map((option, index) => (
@@ -85,24 +90,23 @@ const FloatingActionMenu = ({
                     alignItems: 'center',
                     justifyContent: 'flex-start',
                     gap: '12px',
-                    backgroundColor: 'var(--card-bg)',
                     color: 'var(--text-main)',
-                    boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
-                    border: '1px solid var(--card-border)',
-                    borderRadius: '12px',
-                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    padding: '10px 12px',
                     cursor: 'pointer',
                     fontWeight: 600,
                     fontSize: '0.9rem',
                     transition: 'all 0.2s',
-                    width: '100%'
+                    width: '100%',
+                    background: 'transparent',
+                    border: 'none'
                   }}
                   onMouseOver={(e) => {
                     e.currentTarget.style.backgroundColor = 'var(--primary-light)';
                     e.currentTarget.style.color = 'var(--primary)';
                   }}
                   onMouseOut={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--card-bg)';
+                    e.currentTarget.style.backgroundColor = 'transparent';
                     e.currentTarget.style.color = 'var(--text-main)';
                   }}
                 >

@@ -48,3 +48,46 @@ def coincide_patron(valor: str, patron: str) -> bool:
     if not valor:
         return False
     return bool(re.search(patron, valor, re.IGNORECASE))
+
+
+def verificar_cuadre_cif(
+    subtotal: float,
+    flete: float,
+    seguro: float,
+    otros: float,
+    total_declarado: float,
+    tolerancia: float = 2.0,
+) -> Tuple[bool, float, str]:
+    """
+    Verifica que subtotal + flete + seguro + otros cuadre con el total CIF declarado.
+
+    Args:
+        subtotal: Suma de los items (FOB).
+        flete: Monto del flete.
+        seguro: Monto del seguro.
+        otros: Otros gastos.
+        total_declarado: Total CIF declarado en el documento.
+        tolerancia: Margen permitido para redondeos (default 2.0).
+
+    Returns:
+        Tuple[bool, float, str]: (cuadra, diferencia, mensaje descriptivo).
+    """
+    calculado = subtotal + flete + seguro + otros
+    diff = abs(calculado - total_declarado)
+
+    if total_declarado > 0 and diff <= tolerancia:
+        return True, diff, (
+            f"CIF cuadrado correcto. {calculado:.2f} ≈ {total_declarado:.2f} "
+            f"(subtotal={subtotal}, flete={flete}, seguro={seguro}, otros={otros}, diff={diff:.2f})"
+        )
+
+    if total_declarado <= 0:
+        return False, diff, (
+            f"Total CIF es cero o no disponible ({total_declarado}). "
+            f"No se puede verificar cuadre."
+        )
+
+    return False, diff, (
+        f"Descuadre: Subtotal({subtotal}) + Flete({flete}) + Seguro({seguro}) + Otros({otros}) "
+        f"= {calculado:.2f} vs Total({total_declarado:.2f}). Diferencia: {diff:.2f} (tolerancia: {tolerancia})."
+    )

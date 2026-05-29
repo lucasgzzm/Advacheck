@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from .modelos import Auditoria
+from ..modelos import Auditoria
 
 async def registrar_auditoria(db: AsyncSession, usuario_id: int, accion: str, detalles: str) -> Auditoria:
     """Registra una acción de auditoría en la base de datos."""

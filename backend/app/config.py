@@ -12,6 +12,11 @@ DATABASE_URL = db_url
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
+    if os.getenv("RENDER") or os.getenv("PRODUCTION"):
+        raise RuntimeError(
+            "SECRET_KEY no configurada. "
+            "Debes definirla en las variables de entorno (producción)."
+        )
     import warnings
     warnings.warn("SECRET_KEY no configurada — usando valor por defecto inseguro. Configúrala en producción.")
     SECRET_KEY = "webcheck_super_secret_key_change_me_in_production"

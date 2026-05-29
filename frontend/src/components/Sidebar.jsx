@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, User, Users, LogOut, History as HistoryIcon, Activity, Building2, Settings, Scale, Briefcase } from 'lucide-react';
+import { LayoutDashboard, User, Users, LogOut, History as HistoryIcon, Activity, Building2, Settings, Briefcase } from 'lucide-react';
 import FloatingActionMenu from './ui/floating-action-menu';
 import NotificacionCampana from './NotificacionCampana';
 import { useAuth } from '../context/ContextoAuth';
@@ -19,7 +19,6 @@ function Sidebar() {
         { path: '/', name: 'Métricas', icon: LayoutDashboard },
         { path: '/maestro', name: 'Historial Maestro', icon: HistoryIcon },
         { path: '/proveedores', name: 'Proveedores', icon: Building2 },
-        { path: '/validacion', name: 'Conciliación Doc.', icon: Scale },
         { path: '/auditoria', name: 'Auditoría', icon: Activity },
         { path: '/usuarios', name: 'Personal', icon: Users },
       ]
@@ -27,7 +26,6 @@ function Sidebar() {
         { path: '/', name: 'Dashboard', icon: LayoutDashboard },
         { path: '/clientes', name: 'Clientes', icon: Briefcase },
         { path: '/historial', name: 'Mis Facturas', icon: HistoryIcon },
-        { path: '/validacion', name: 'Conciliación Doc.', icon: Scale },
       ];
 
   return (

@@ -374,44 +374,6 @@ class DocumentoEstructurado(BaseModel):
         description="Diccionario estructurado extraído por Gemini con campos normalizados",
     )
 
-class SolicitudValidacionCruzada(BaseModel):
-    """Esquema de solicitud de validación cruzada entre documentos."""
-    documentos: List[DocumentoEstructurado] = Field(
-        ...,
-        min_length=2,
-        max_length=5,
-        description="Lista de documentos estructurados a validar cruzadamente",
-    )
-
-class DiscrepanciaValidacion(BaseModel):
-    """Esquema de una discrepancia encontrada en la validación."""
-    campo: str = Field(..., description="Nombre del campo con discrepancia")
-    descripcion: str = Field(..., description="Descripción detallada del descalce")
-    severidad: str = Field(..., pattern=r"^(ALTA|MEDIA|BAJA)$")
-    detalle: Optional[dict] = Field(
-        default=None,
-        description="Información adicional estructurada (valores enfrentados, porcentajes, etc.)",
-    )
-
-class ResultadoValidacionCruzada(BaseModel):
-    """Esquema del resultado completo de la validación cruzada."""
-    documentos_identificados: List[str] = Field(
-        ...,
-        description="Lista de tipos de documentos que se identificaron",
-    )
-    discrepancias_encontradas: bool
-    lista_discrepancias: List[DiscrepanciaValidacion] = Field(
-        ...,
-        description="Lista detallada de descalces encontrados",
-    )
-    coincidencias_clave: List[str] = Field(
-        ...,
-        description="Lista de campos que coinciden correctamente entre documentos",
-    )
-    conclusion: str = Field(
-        ...,
-        description="Resumen ejecutivo de la validación cruzada",
-    )
 
 
 # --- Esquemas de Configuración del Motor de Reglas ---
@@ -479,7 +441,7 @@ class PrevalidarAprobarRequest(BaseModel):
 class ArchivoIntercambioResponse(BaseModel):
     """Esquema de respuesta con archivos de intercambio (XML/JSON)."""
     xml: str
-    json: dict
+    json_data: dict
 
 
 class SolicitudAprobacion(BaseModel):

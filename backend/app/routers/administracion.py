@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 
 from .. import esquemas, modelos
-from ..servicio_auditoria import registrar_auditoria
+from ..services.servicio_auditoria import registrar_auditoria
 from ..base_datos import get_db
 from ..seguridad import generar_hash
 from ..dependencias import (
@@ -286,10 +286,11 @@ async def eliminar_usuario(
         )
     )
 
-    await registrar_auditoria(db, admin.id,
+    await registrar_auditoria(db, admin.id, "Eliminación de Usuario",
+        f"Usuario '{usuario.nombre}' ({usuario.email}) eliminado permanentemente por el Administrador."
     )
 
-    await db.delete(usuario, "Eliminación de Usuario", f"Usuario '{usuario.nombre}' ({usuario.email}) eliminado permanentemente por el Administrador.")
+    await db.delete(usuario)
     await db.commit()
 
     return {

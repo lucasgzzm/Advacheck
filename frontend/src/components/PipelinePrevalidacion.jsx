@@ -4,7 +4,46 @@ import {
   Shield, FileText, Calculator, Scale, Package, Globe, Clock, Flag,
 } from 'lucide-react';
 
-const v = (name) => `var(--${name})`;
+import { cssVar as v } from '../lib/utils';
+
+const FIELD_SHORT = {
+  'numero_factura': 'N° factura',
+  'fecha_emision': 'Fecha emisión',
+  'moneda': 'Moneda',
+  'incoterm': 'Incoterm',
+  'monto_total': 'Monto total',
+  'emisor_nombre': 'Nombre exportador',
+  'receptor_rut_chile': 'RUT importador',
+  'cuadre_aritmetico': 'Cuadre CIF',
+  'asignacion_partida': 'Partidas',
+  'cif_flete_seguro': 'Flete/Seguro',
+  'fob_cargos_extra': 'Cargos FOB',
+  'detalles_disponibles': 'Detalles',
+  'partidas_disponibles': 'Partidas',
+  'entidades_requeridas': 'Entidades',
+  'permisos_cubiertos': 'Permisos',
+  'permisos_faltantes': 'V°B°',
+  'peso_factura_vs_bl': 'Peso Fact/BL',
+  'peso_pl_vs_bl': 'Peso PL/BL',
+  'bultos_factura_vs_bl': 'Bultos Fact/BL',
+  'bultos_pl_vs_bl': 'Bultos PL/BL',
+  'cantidad_total': 'Cantidad total',
+  'identidad_proveedor': 'Proveedor',
+  'incoterm_valido': 'Incoterm',
+  'seguro_obligatorio': 'Seguro',
+  'flete_obligatorio': 'Flete',
+  'exw_cargos': 'Cargos EXW',
+  'fob_cargos': 'Cargos FOB',
+  'coherencia_precios': 'Precios',
+  'descuentos_documentados': 'Descuentos',
+  'regalias': 'Regalías',
+  'vinculacion': 'Vinculación',
+  'vigencia_factura': 'Vigencia factura',
+  'vigencia_bl': 'Vigencia BL',
+  'cobertura_seguro': 'Cobertura seguro',
+  'scoring_final': 'Score',
+};
+const shortLabel = (c) => FIELD_SHORT[c.nombre] || c.nombre.replace(/_/g, ' ');
 
 const STATUS_CFG = {
   PASS: { color: v('green'), bg: 'rgba(16,185,129,0.08)', icon: CheckCircle, label: 'Aprobado' },
@@ -104,8 +143,11 @@ const PipelinePrevalidacion = ({ prevalidacion }) => {
   };
 
   const filteredEtapas = showAll ? etapas : etapas.slice(0, 6);
-  const totalControles = etapas.reduce((s, e) => s + e.controles.length, 0);
-  const passedControles = etapas.reduce((s, e) => s + e.controles.filter(c => c.estado === 'PASS').length, 0);
+  const hallazgos = etapas.flatMap(e =>
+    e.controles
+      .filter(c => c.estado !== 'PASS' && c.mensaje)
+      .map(c => ({ ...c, etapa: e.numero, etapaTitulo: e.titulo }))
+  );
 
   return (
     <div style={{ marginTop: '20px' }}>
@@ -136,10 +178,27 @@ const PipelinePrevalidacion = ({ prevalidacion }) => {
             <span style={{ fontSize: '0.8rem', color: v('text-muted') }}>
               Etapas: <strong>{etapas.length}</strong>
             </span>
-            <span style={{ fontSize: '0.8rem', color: v('text-muted') }}>
-              Controles: <strong>{passedControles}/{totalControles}</strong> OK
-            </span>
           </div>
+          {(() => {
+            const fails = hallazgos.filter(h => h.estado === 'FAIL' && h.nombre !== 'scoring_final');
+            const warns = hallazgos.filter(h => h.estado === 'WARNING');
+            return (
+              <>
+                {fails.length > 0 && (
+                  <div style={{ marginTop: '10px', fontSize: '0.8rem', color: v('red'), display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                    <span style={{ fontWeight: 700, flexShrink: 0 }}>✗ Falta:</span>
+                    <span>{fails.map(shortLabel).join(', ')}</span>
+                  </div>
+                )}
+                {warns.length > 0 && (
+                  <div style={{ marginTop: '4px', fontSize: '0.8rem', color: v('yellow'), display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                    <span style={{ fontWeight: 700, flexShrink: 0 }}>⚠ Advertencia:</span>
+                    <span>{warns.map(shortLabel).join(', ')}</span>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -206,15 +265,24 @@ const PipelinePrevalidacion = ({ prevalidacion }) => {
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                  {etapa.resumen && (
-                    <span style={{
-                      fontSize: '0.65rem', color: cfg.color, fontWeight: 600,
-                      background: cfg.bg, padding: '2px 8px', borderRadius: '4px',
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {etapa.resumen}
-                    </span>
-                  )}
+                  {(() => {
+                    const f = etapa.controles.filter(c => c.estado === 'FAIL' && c.nombre !== 'scoring_final');
+                    const w = etapa.controles.filter(c => c.estado === 'WARNING');
+                    if (f.length > 0) {
+                      return <span style={{ fontSize: '0.65rem', color: v('red'), fontWeight: 600, background: 'rgba(239,68,68,0.08)', padding: '2px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                        ✗ {f.map(shortLabel).join(', ')}
+                      </span>;
+                    }
+                    if (w.length > 0) {
+                      return <span style={{ fontSize: '0.65rem', color: v('yellow'), fontWeight: 600, background: 'rgba(245,158,11,0.08)', padding: '2px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                        ⚠ {w.map(shortLabel).join(', ')}
+                      </span>;
+                    }
+                    if (etapa.controles.length > 0) {
+                      return <span style={{ fontSize: '0.65rem', color: v('green'), fontWeight: 600, background: 'rgba(16,185,129,0.08)', padding: '2px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>✓ OK</span>;
+                    }
+                    return null;
+                  })()}
                   <Icon size={16} color={cfg.color} />
                   {expanded ? <ChevronUp size={14} color={v('text-muted')} /> : <ChevronDown size={14} color={v('text-muted')} />}
                 </div>

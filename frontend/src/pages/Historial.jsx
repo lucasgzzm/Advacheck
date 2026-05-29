@@ -3,8 +3,7 @@ import { API_BASE } from '../services/api';
 import { Download, History as HistoryIcon, Search, AlertCircle, FileText, CheckCircle, AlertTriangle, Trash2, RefreshCw, Lock, Unlock, Eye, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
-// Helper: retorna variable CSS con el name dado
-const v = (name) => `var(--${name})`;
+import { cssVar as v } from '../lib/utils';
 
 // Componente principal: muestra el historial de documentos del usuario actual
 const History = () => {

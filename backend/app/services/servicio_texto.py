@@ -1,23 +1,23 @@
 import json
+import logging
 import os
-import urllib.error
-import urllib.request
 from typing import Any, Dict, Optional
 
+import httpx
 from fastapi import HTTPException, status
 
-from .config import GEMINI_API_KEY
+from ..config import GEMINI_API_KEY
+
+logger = logging.getLogger(__name__)
 
 
 def _cargar_clasificaciones() -> list[dict]:
-    """Carga el catálogo de clasificaciones arancelarias desde JSON."""
     ruta = os.path.join(os.path.dirname(__file__), "datos_clasificacion.json")
     with open(ruta, encoding="utf-8") as f:
         return json.load(f)
 
 
 def _clasificar_local(descripcion: str) -> Optional[dict]:
-    """Clasifica un producto localmente por palabras clave sin usar Gemini."""
     desc_lower = descripcion.lower()
     clasificaciones = _cargar_clasificaciones()
 
@@ -47,7 +47,6 @@ def _clasificar_local(descripcion: str) -> Optional[dict]:
 
 
 def _extraer_json_respuesta(texto_respuesta: str) -> dict:
-    """Extrae un objeto JSON del texto de respuesta de Gemini."""
     if "```json" in texto_respuesta:
         texto_respuesta = texto_respuesta.split("```json")[1].split("```")[0].strip()
     elif "```" in texto_respuesta:
@@ -55,29 +54,29 @@ def _extraer_json_respuesta(texto_respuesta: str) -> dict:
     return json.loads(texto_respuesta)
 
 
-def _llamar_gemini(prompt: str) -> Optional[dict]:
-    """Envía un prompt a Gemini 2.5 Flash y retorna la respuesta cruda."""
+async def _llamar_gemini(prompt: str) -> Optional[dict]:
     if not GEMINI_API_KEY:
         return None
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+    headers = {"Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY}
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    datos = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=datos, headers={"Content-Type": "application/json"})
 
     try:
-        with urllib.request.urlopen(req) as response:
-            return json.loads(response.read().decode())
-    except urllib.error.HTTPError as e:
-        if e.code == 429:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 429:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Se alcanzó el límite de peticiones. Espera un momento e intenta de nuevo.",
             )
-        print(f"Error HTTP en Gemini ({e.code}): {e.read().decode()}")
+        logger.error(f"Error HTTP en Gemini ({e.response.status_code}): {e.response.text}")
         return None
     except Exception as e:
-        print(f"Error en petición a Gemini: {str(e)}")
+        logger.error(f"Error en petición a Gemini: {e}")
         return None
 
 
@@ -86,7 +85,6 @@ class AITextService:
 
     @staticmethod
     async def parse_invoice(raw_text: str) -> Optional[Dict[str, Any]]:
-        """Estructura el texto OCR en campos aduaneros usando Gemini."""
         system_prompt = """
 Eres un sistema de extracción de datos para documentos de comercio exterior.
 Tu objetivo es leer el texto de un documento aduanero y estructurarlo en formato JSON.
@@ -131,7 +129,7 @@ Responde ÚNICAMENTE con un objeto JSON válido usando esta estructura:
 }
 """
         prompt_completo = f"{system_prompt}\n\n=== TEXTO DEL DOCUMENTO ===\n{raw_text}\n=== FIN DEL TEXTO ==="
-        resultado = _llamar_gemini(prompt_completo)
+        resultado = await _llamar_gemini(prompt_completo)
 
         if not resultado:
             return None
@@ -146,82 +144,11 @@ Responde ÚNICAMENTE con un objeto JSON válido usando esta estructura:
         json_text = resultado["candidates"][0]["content"]["parts"][0]["text"]
         data_parsed = _extraer_json_respuesta(json_text)
 
-        print(f"Estructuración completada. Tokens utilizados: {tokens_info['total']}")
+        logger.info(f"Estructuración completada. Tokens: {tokens_info['total']}")
         return {"data": data_parsed, "tokens": tokens_info}
 
     @staticmethod
-    async def cross_validate_documents(raw_texts: list[str]) -> Optional[Dict[str, Any]]:
-        """Realiza validación cruzada multi-documento usando Gemini."""
-        if not GEMINI_API_KEY:
-            return {
-                "documentos_identificados": [
-                    "Commercial Invoice (Factura)",
-                    "Bill of Lading (B/L)",
-                    "Packing List",
-                ],
-                "discrepancias_encontradas": True,
-                "lista_discrepancias": [
-                    {
-                        "campo": "Flete Marítimo (B/L vs Factura)",
-                        "descripcion": "El flete marítimo reportado en el Bill of Lading es de 1,200.00 USD, mientras que la Factura Comercial declara 850.00 USD. Existe una subdeclaración del flete de 350.00 USD, lo cual afecta la base imponible del Valor en Aduana CIF.",
-                        "severidad": "ALTA",
-                    },
-                    {
-                        "campo": "Peso Bruto (Packing List vs B/L)",
-                        "descripcion": "El peso bruto en el Packing List figura como 420.50 kg, pero el B/L reporta 450.00 kg. Discrepancia del 7% en peso bruto.",
-                        "severidad": "MEDIA",
-                    },
-                ],
-                "coincidencias_clave": [
-                    "Identificación del Importador (WebCheck Retail Chile S.A. RUT 76.543.210-K) coincide en todos los documentos.",
-                    "El puerto de descarga (San Antonio, Chile) coincide en el B/L y la Factura.",
-                ],
-                "conclusion": "Se detectaron discrepancias críticas en los cargos incrementables (flete) y en los pesos declarados. Se requiere ajuste de liquidación tributaria antes del despacho.",
-            }
-
-        system_prompt = """
-Eres un auditor experto de aduanas. Se te proporcionará el texto extraído de varios documentos de una misma operación de importación (por ejemplo, Factura Comercial, Bill of Lading, Packing List).
-
-Tu tarea es:
-1. Identificar qué tipo de documentos se proporcionaron.
-2. Realizar una validación cruzada estricta:
-   - ¿El exportador/importador coincide en todos los documentos?
-   - ¿El peso bruto, neto o cantidad de bultos coincide?
-   - ¿Los montos totales o valores coinciden?
-   - VALOR EN ADUANAS Y FLETE B/L: Cruza el costo de flete reportado en la Factura Comercial con el flete/gastos reportados en el B/L (Bill of Lading). Identifica si hay alguna discrepancia entre el flete contratado en el B/L y el declarado en la factura comercial.
-   - ¿Hay alguna discrepancia en puertos de embarque, descarga o países de origen?
-
-Responde ÚNICAMENTE con un objeto JSON válido usando esta estructura:
-{
-  "documentos_identificados": ["str"],
-  "discrepancias_encontradas": boolean,
-  "lista_discrepancias": [
-     {
-        "campo": "str",
-        "descripcion": "str",
-        "severidad": "ALTA | MEDIA | BAJA"
-     }
-  ],
-  "coincidencias_clave": ["str"],
-  "conclusion": "str"
-}
-"""
-        text_combinado = "\n\n".join(
-            f"=== DOCUMENTO {i+1} ===\n{txt}\n=== FIN DOCUMENTO {i+1} ==="
-            for i, txt in enumerate(raw_texts)
-        )
-        prompt_completo = f"{system_prompt}\n{text_combinado}"
-        resultado = _llamar_gemini(prompt_completo)
-
-        if not resultado:
-            return None
-
-        json_text = resultado["candidates"][0]["content"]["parts"][0]["text"]
-        return _extraer_json_respuesta(json_text)
-
-    @staticmethod
     async def classify_item(descripcion_producto: str) -> Optional[Dict[str, Any]]:
-        """Clasifica un producto con su partida arancelaria usando Gemini o fallback local."""
         if not GEMINI_API_KEY:
             return _clasificar_local(descripcion_producto)
 
@@ -246,7 +173,7 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
 }
 """
         prompt_completo = f"{system_prompt}\n\n=== DESCRIPCIÓN DEL PRODUCTO ===\n{descripcion_producto}"
-        resultado = _llamar_gemini(prompt_completo)
+        resultado = await _llamar_gemini(prompt_completo)
 
         if not resultado:
             return _clasificar_local(descripcion_producto)
@@ -255,5 +182,5 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             json_text = resultado["candidates"][0]["content"]["parts"][0]["text"]
             return _extraer_json_respuesta(json_text)
         except (KeyError, json.JSONDecodeError) as e:
-            print(f"Error parseando respuesta de Gemini: {str(e)}")
+            logger.error(f"Error parseando respuesta de Gemini: {e}")
             return _clasificar_local(descripcion_producto)

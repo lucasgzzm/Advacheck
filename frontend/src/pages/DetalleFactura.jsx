@@ -21,8 +21,7 @@ import EstadoAduaneroTimeline from '../components/EstadoAduaneroTimeline';
 import ItemsTable from '../components/ItemsTable';
 
 
-// Helper para acceder a variables CSS personalizadas
-const v = (name) => `var(--${name})`;
+import { cssVar as v } from '../lib/utils';
 
 const STATUS_MAP = {
   alto: { label: 'Fallo de Regla', color: v('red'), bg: 'rgba(239,68,68,0.12)', icon: XCircle },

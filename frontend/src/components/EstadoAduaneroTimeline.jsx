@@ -1,8 +1,7 @@
 import React from 'react';
 import { Edit3, Send, FileSearch, Package, Receipt, CheckCircle, Flag } from 'lucide-react';
 
-// Helper para acceder a variables CSS
-const v = (name) => `var(--${name})`;
+import { cssVar as v } from '../lib/utils';
 
 // Índice numérico de cada estado aduanero para calcular progreso
 const ORDEN_ESTADOS = {

@@ -3,8 +3,7 @@ import { API_BASE } from '../services/api';
 import { Layers, Search, FileText, CheckCircle, AlertTriangle, AlertCircle, RefreshCw, User as UserIcon, Eye, Lock, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-// Helper: retorna variable CSS con el name dado
-const v = (name) => `var(--${name})`;
+import { cssVar as v } from '../lib/utils';
 
 // Componente principal: auditoría global con todos los documentos de todos los operadores
 const GlobalHistory = () => {

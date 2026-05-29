@@ -3,14 +3,14 @@ from datetime import datetime, timedelta
 from typing import Optional, Literal
 from difflib import SequenceMatcher
 
-from .modelos import NivelRiesgo
+from ..modelos import NivelRiesgo
 
 logger = logging.getLogger(__name__)
 
 ESTADO = Literal["PASS", "WARNING", "FAIL", "NO_EJECUTADA"]
 SEVERIDAD = Literal["BAJA", "MEDIA", "ALTA"]
 
-from .catalogo_regulatorio import (
+from ..catalogo_regulatorio import (
     ENTIDADES_POR_PARTIDA,
     INCOTERMS_VALIDOS,
     INCOTERMS_MARITIMOS,
@@ -18,10 +18,11 @@ from .catalogo_regulatorio import (
     MONEDAS_VALIDAS,
     normalizar_partida as _normalizar_partida
 )
-from .utilidades import (
+from ..utilidades import (
     convertir_a_float as _float,
     obtener_valor_anidado as _obtener_valor,
-    coincide_patron as _coincide_patron
+    coincide_patron as _coincide_patron,
+    verificar_cuadre_cif
 )
 
 PATRONES_CONFIANZA = {
@@ -356,7 +357,7 @@ class ServicioPrevalidacionAduanera:
             "FAIL" if not incoterm.strip() else "PASS",
             "Incoterm no declarado." if not incoterm.strip() else f"Incoterm: {incoterm}",
         ))
-        monto = _float(doc.get("monto_total"))
+        monto = _float(doc.get("monto_total") or doc.get("monto_total_cif"))
         etapa.agregar_control(ControlPrevalidacion(
             "monto_total",
             "FAIL" if monto <= 0 else "PASS",
@@ -396,29 +397,24 @@ class ServicioPrevalidacionAduanera:
         flete = _float(doc.get("monto_flete") or doc.get("flete"))
         seguro = _float(doc.get("monto_seguro") or doc.get("seguro"))
         otros = _float(doc.get("monto_otros_gastos") or doc.get("otros_gastos"))
-        total = _float(doc.get("monto_total") or doc.get("total"))
+        total = _float(doc.get("monto_total") or doc.get("monto_total_cif") or doc.get("total"))
 
-        calculado = subtotal + flete + seguro + otros
-        diff = abs(calculado - total)
-        tolerancia = 2.00
-        if total > 0:
-            etapa.agregar_control(ControlPrevalidacion(
-                "cuadre_aritmetico",
-                "FAIL" if diff > tolerancia else "WARNING" if diff > 0.50 else "PASS",
-                f"Subtotal({subtotal}) + Flete({flete}) + Seguro({seguro}) + Otros({otros}) = {calculado:.2f} vs Total({total:.2f}). Diferencia: {diff:.2f} (tolerancia: {tolerancia})."
-                if diff > tolerancia
-                else f"CIF cuadrado correcto. {calculado:.2f} ≈ {total:.2f} (diff: {diff:.2f})",
-                detalle=f"subtotal={subtotal}, flete={flete}, seguro={seguro}, otros={otros}, calculado={calculado:.2f}, total={total:.2f}, diff={diff:.2f}",
-            ))
+        cuadra, diff, mensaje = verificar_cuadre_cif(subtotal, flete, seguro, otros, total, tolerancia=2.0)
+        if diff <= 0.50:
+            estado_cuadre = "PASS"
+        elif diff <= 2.0:
+            estado_cuadre = "WARNING"
         else:
-            etapa.agregar_control(ControlPrevalidacion(
-                "cuadre_aritmetico", "FAIL", "Total CIF es cero o no disponible. No se puede verificar cuadre."
-            ))
+            estado_cuadre = "FAIL"
+        etapa.agregar_control(ControlPrevalidacion(
+            "cuadre_aritmetico", estado_cuadre, mensaje,
+            detalle=f"subtotal={subtotal}, flete={flete}, seguro={seguro}, otros={otros}, diff={diff:.2f}",
+        ))
 
         detalles = doc.get("detalles") or []
         items_sin_partida = sum(
             1 for d in detalles
-            if not (d.get("partida_arancelaria_corregida") or d.get("partida_arancelaria") or "").strip()
+            if not (d.get("partida_arancelaria_corregida") or d.get("partida_arancelaria") or d.get("partida_arancelaria_sugerida") or "").strip()
         )
         total_items = len(detalles)
         if total_items > 0:
@@ -467,7 +463,7 @@ class ServicioPrevalidacionAduanera:
         entidades_requeridas = {}
         items_sin_partida = 0
         for item in detalles:
-            partida = item.get("partida_arancelaria_corregida") or item.get("partida_arancelaria") or ""
+            partida = item.get("partida_arancelaria_corregida") or item.get("partida_arancelaria") or item.get("partida_arancelaria_sugerida") or ""
             if not partida.strip() or partida in ("0000.00.00.00",):
                 items_sin_partida += 1
                 continue
@@ -712,7 +708,7 @@ class ServicioPrevalidacionAduanera:
                     "FOB con flete/seguro incluidos. Estos deben declararse por separado para el valor CIF.",
                 ))
 
-        total = _float(doc.get("monto_total") or doc.get("total"))
+        total = _float(doc.get("monto_total") or doc.get("monto_total_cif") or doc.get("total"))
         subtotal_items = sum(
             _float(d.get("cantidad", 0)) * _float(d.get("precio_unitario", 0))
             for d in detalles

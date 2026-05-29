@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import esquemas, modelos
-from ..servicio_auditoria import registrar_auditoria
+from ..services.servicio_auditoria import registrar_auditoria
 from ..base_datos import get_db
 from ..seguridad import (
     crear_token_acceso,

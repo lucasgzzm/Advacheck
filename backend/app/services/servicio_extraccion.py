@@ -7,6 +7,7 @@ import json
 from fastapi import HTTPException, status
 from .servicio_ocr import OCRService
 from .servicio_texto import AITextService
+from ..utilidades import verificar_cuadre_cif
 
 
 class ExtractorService:
@@ -63,48 +64,21 @@ class ExtractorService:
 
     @staticmethod
     def _validate_integrity(data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Verifica que la suma de los ítems + flete + seguro coincida
-        con el total CIF declarado (con un margen de $2 por redondeos).
-        """
+        """Verifica que la suma de items + flete + seguro + otros cuadre con el total CIF declarado."""
         items = data.get("detalles", [])
-        total_suma_items = sum(item.get("cantidad", 0) * item.get("precio_unitario", 0) for item in items)
-        
-        flete = data.get("monto_flete", 0) or 0
-        seguro = data.get("monto_seguro", 0) or 0
-        total_declarado = data.get("monto_total_cif", 0) or 0
-        
-        calculo_global = total_suma_items + flete + seguro
-        
-        if abs(calculo_global - total_declarado) > 2.0:
-            data["validacion_error"] = True
-            data["mensaje_error"] = f"Descuadre: Items ({total_suma_items:.2f}) + Flete ({flete:.2f}) + Seguro ({seguro:.2f}) = {calculo_global:.2f}. El documento declara {total_declarado:.2f}."
-        else:
-            data["validacion_error"] = False
+        subtotal = sum(
+            float(item.get("cantidad", 0)) * float(item.get("precio_unitario", 0))
+            for item in items
+        )
+        flete = float(data.get("monto_flete", 0) or 0)
+        seguro = float(data.get("monto_seguro", 0) or 0)
+        otros = float(data.get("monto_otros_gastos", 0) or 0)
+        total_declarado = float(data.get("monto_total_cif", 0) or 0)
+
+        cuadra, diff, mensaje = verificar_cuadre_cif(subtotal, flete, seguro, otros, total_declarado)
+        data["validacion_error"] = not cuadra
+        if not cuadra:
+            data["mensaje_error"] = mensaje
 
         return data
 
-    @staticmethod
-    async def cross_validate(files_bytes: List[bytes]) -> Dict[str, Any]:
-        """Extrae texto de múltiples PDFs y realiza validación cruzada."""
-        textos = []
-        for fb in files_bytes:
-            try:
-                txt = await OCRService.extract_text(fb)
-                textos.append(txt)
-            except Exception as e:
-                print(f"Error en Azure OCR para validación cruzada: {str(e)}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Fallo en la lectura de uno de los documentos. Detalle: {str(e)}"
-                )
-        
-        cross_validation_result = await AITextService.cross_validate_documents(textos)
-        
-        if not cross_validation_result:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="El servicio de análisis falló durante la validación cruzada."
-            )
-            
-        return cross_validation_result

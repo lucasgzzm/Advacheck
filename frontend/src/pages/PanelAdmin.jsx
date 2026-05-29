@@ -6,8 +6,7 @@ import {
 } from 'lucide-react';
 import { API_BASE, peticionGet, peticionPut } from '../services/api';
 
-// Helper: retorna variable CSS con el name dado
-const v = (name) => `var(--${name})`;
+import { cssVar as v } from '../lib/utils';
 
 const SEVERIDAD_OPTS = [
   { value: 'IGNORAR', label: 'Ignorar', color: '#6b7280' },

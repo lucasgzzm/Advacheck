@@ -10,10 +10,9 @@ from .. import esquemas, modelos
 from ..base_datos import get_db
 from ..dependencias import obtener_usuario_actual
 from ..config import UPLOAD_DIR
-from ..servicio_extraccion import ExtractorService
-from ..servicio_texto import AITextService
-from ..servicio_validacion_cruzada import ServicioValidacionCruzada
-from ..servicio_prevalidacion import ServicioPrevalidacionAduanera, evaluar_confianza_extraccion, verificar_cuadratura_items
+from ..services.servicio_extraccion import ExtractorService
+from ..services.servicio_texto import AITextService
+from ..services.servicio_prevalidacion import ServicioPrevalidacionAduanera, evaluar_confianza_extraccion, verificar_cuadratura_items
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +150,7 @@ async def escanear_factura_pdf(
                 )
                 db.add(nuevo_log)
 
-                from ..servicio_auditoria import registrar_auditoria
+                from ..services.servicio_auditoria import registrar_auditoria
                 await registrar_auditoria(db, usuario_actual.id, "Análisis de Documento", f"Extracción y evaluación de riesgo para '{file.filename}'.")
 
                 await db.flush()
@@ -229,117 +228,6 @@ async def escanear_factura_pdf(
             detail=f"Error procesando el PDF: {str(e)}",
         )
 
-
-@router.post("/scan-multi")
-async def escanear_multiples_documentos(
-    files: List[UploadFile] = File(...),
-    db: AsyncSession = Depends(get_db),
-    usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
-):
-    """Valida múltiples documentos con cruce de datos."""
-    if len(files) < 2:
-        raise HTTPException(
-            status_code=400, detail="Se requieren al menos 2 documentos para la validación cruzada."
-        )
-    if len(files) > 5:
-        raise HTTPException(status_code=400, detail="Máximo 5 documentos permitidos.")
-
-    for f in files:
-        if not f.filename.endswith(".pdf"):
-            raise HTTPException(status_code=400, detail="Solo se admiten archivos PDF.")
-
-    try:
-        # 1. Extraer y estructurar cada PDF individualmente
-        factura: Optional[dict] = None
-        packing_list: Optional[dict] = None
-        bl: Optional[dict] = None
-
-        for f in files:
-            contenido = await f.read()
-            datos = await ExtractorService.extract_from_pdf(contenido)
-            tipo_doc = (datos.get("tipo_documento") or "").upper()
-
-            if "COMERCIAL_INVOICE" in tipo_doc or "FACTURA" in tipo_doc or "INVOICE" in tipo_doc:
-                factura = datos
-            elif "PACKING" in tipo_doc or "EMPAQUE" in tipo_doc or "PACK" in tipo_doc:
-                packing_list = datos
-            elif "BILL" in tipo_doc or "BL" in tipo_doc or "BOL" in tipo_doc or \
-                 "GUIA" in tipo_doc or "AEREA" in tipo_doc or "AIR" in tipo_doc:
-                bl = datos
-            else:
-                # Heurística por nombre de archivo si Gemini no clasificó
-                nombre = f.filename.lower()
-                if "packing" in nombre or "empaque" in nombre:
-                    packing_list = packing_list or datos
-                elif "bl" in nombre or "bill" in nombre or "guia" in nombre or "aerea" in nombre:
-                    bl = bl or datos
-                elif "factura" in nombre or "invoice" in nombre:
-                    factura = factura or datos
-                else:
-                    # Asignación por orden: factura→packing→bl
-                    if factura is None:
-                        factura = datos
-                    elif packing_list is None:
-                        packing_list = datos
-                    else:
-                        bl = bl or datos
-
-        if factura is None:
-            raise HTTPException(
-                status_code=400,
-                detail="No se pudo identificar una Factura Comercial entre los documentos subidos.",
-            )
-
-        # 2. Ejecutar validación cruzada programática
-        resultado = ServicioValidacionCruzada.ejecutar(
-            factura=factura,
-            packing_list=packing_list,
-            bl=bl,
-        )
-
-        # 3. Auditoría
-        docs_str = ", ".join(
-            d for d in [
-                "Factura" if factura else None,
-                "Packing List" if packing_list else None,
-                "B/L" if bl else None,
-            ] if d
-        )
-        await registrar_auditoria(db, usuario_actual.id, "Validación Cruzada", (
-                f"Validación cruzada de {len(files)} documento(s): {docs_str}. "
-                f"{len(resultado.lista_discrepancias)} discrepancia(s) encontrada(s)."
-            ))
-        await db.commit()
-
-        # 3. Ejecutar prevalidación aduanera completa (7 etapas)
-        prevalidacion = ServicioPrevalidacionAduanera.ejecutar(
-            factura=factura or {},
-            packing_list=packing_list,
-            bl=bl,
-        )
-
-        # 4. Confianza de extracción + cuadratura de ítems
-        confianza = evaluar_confianza_extraccion(factura or {})
-        cuadratura = verificar_cuadratura_items(factura or {})
-
-        return {
-            "status": "success",
-            "data": {
-                "validacion_cruzada": resultado.model_dump(),
-                "prevalidacion": prevalidacion,
-                "confianza": confianza,
-                "cuadratura_items": cuadratura,
-            },
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error en validación cruzada: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error inesperado durante la validación: {str(e)}",
-        )
 
 
 @router.post("/clasificar-item")

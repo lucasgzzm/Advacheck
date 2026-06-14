@@ -11,18 +11,17 @@ from ..utilidades import verificar_cuadre_cif
 
 
 class ExtractorService:
-    """
-    Servicio coordinador de extracción de datos de facturas PDF.
-    Paso 1: Azure Document Intelligence extrae el texto del PDF.
-    Paso 2: Gemini estructura el texto en campos aduaneros.
-    Si algún paso falla, se aborta la operación para evitar datos incorrectos.
+    """Coordinador de la extraccion de datos de facturas PDF.
+    Paso 1: pdfplumber + Azure OCR extraen el texto del PDF.
+    Paso 2: Gemini estructura ese texto en campos aduaneros (emisor, receptor, montos, items).
+    Si algun paso falla, se aborta para no guardar datos incorrectos.
     """
 
     @staticmethod
     async def extract_from_pdf(file_bytes: bytes) -> Dict[str, Any]:
-        """Punto de entrada principal. Coordina la extracción y validación."""
+        """Punto de entrada: recibe el PDF en bytes, devuelve el diccionario con todos los datos extraidos."""
 
-        # 1. Extracción de texto mediante OCR (Azure)
+        # 1. Extraer texto del PDF (primero local con pdfplumber, luego Azure OCR si hace falta)
         texto_crudo = None
         try:
             texto_crudo = await OCRService.extract_text(file_bytes)
@@ -34,37 +33,37 @@ class ExtractorService:
                 detail=f"Fallo en la lectura del documento (OCR). Detalle: {str(e)}"
             )
 
-        # 2. Estructuración del texto con Gemini
+        # 2. Mandar el texto a Gemini para que lo estructure en JSON
         ai_response = await AITextService.parse_invoice(texto_crudo)
 
         tokens = None
         data = None
-        
+
         if ai_response and "data" in ai_response:
             data = ai_response["data"]
             tokens = ai_response.get("tokens")
 
         if data:
-            print("Estructuración de datos completada.")
+            print("Estructuracion de datos completada.")
         else:
-            print("Fallo en la estructuración. Abortando extracción.")
+            print("Fallo en la estructuracion. Abortando extraccion.")
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="El servicio de análisis de texto falló o está saturado. Se canceló la extracción para evitar datos incorrectos."
+                detail="El servicio de analisis de texto fallo o esta saturado. Se cancelo la extraccion para evitar datos incorrectos."
             )
 
-        # 3. Validación de integridad de los datos
+        # 3. Verificar que los datos tengan sentido (cuadratura CIF)
         data = ExtractorService._validate_integrity(data)
-        
-        # Adjuntar metadatos de tokens para el frontend
+
+        # Adjuntar metadatos de tokens para mostrarlos en el frontend
         if tokens:
             data["_ai_metadata"] = tokens
-        
+
         return data
 
     @staticmethod
     def _validate_integrity(data: Dict[str, Any]) -> Dict[str, Any]:
-        """Verifica que la suma de items + flete + seguro + otros cuadre con el total CIF declarado."""
+        """Verifica que subtotal + flete + seguro + otros aproximadamente igual al total CIF."""
         items = data.get("detalles", [])
         subtotal = sum(
             float(item.get("cantidad", 0)) * float(item.get("precio_unitario", 0))
@@ -81,4 +80,3 @@ class ExtractorService:
             data["mensaje_error"] = mensaje
 
         return data
-

@@ -2,6 +2,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import esquemas, modelos
@@ -21,7 +22,7 @@ from ..dependencias import (
     usuarios_conectados,
 )
 
-router = APIRouter(prefix="/api/auth", tags=["Autenticación"])
+router = APIRouter(prefix="/api/auth", tags=["Autenticacion"])
 
 
 @router.post("/login", response_model=esquemas.Token)
@@ -29,19 +30,22 @@ async def iniciar_sesion(
     login_req: esquemas.LoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Autentica un usuario y devuelve un token JWT."""
+    """Valida el email y la contrasena, genera un JWT y registra la sesion."""
     resultado = await db.execute(
-        select(modelos.Usuario).filter(modelos.Usuario.email == login_req.email)
+        select(modelos.Usuario)
+        .options(selectinload(modelos.Usuario.rol_rel))
+        .filter(modelos.Usuario.email == login_req.email)
     )
     usuario = resultado.scalars().first()
 
     if not usuario or not verificar_password(login_req.password, usuario.contrasena_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email o contraseña incorrectos",
+            detail="Email o contrasena incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Si el hash usa el algoritmo viejo, lo actualiza automaticamente
     if pwd_context.needs_update(usuario.contrasena_hash):
         usuario.contrasena_hash = generar_hash(login_req.password)
 
@@ -58,7 +62,7 @@ async def iniciar_sesion(
         expiracion=expiracion,
     )
 
-    await registrar_auditoria(db, usuario.id, "Inicio de Sesión", f"El usuario '{usuario.nombre}' ({usuario.email}) inició sesión correctamente.")
+    await registrar_auditoria(db, usuario.id, "Inicio de Sesion", f"El usuario '{usuario.nombre}' ({usuario.email}) inicio sesion correctamente.")
     await db.commit()
 
     usuarios_conectados[usuario.id] = datetime.now()
@@ -76,10 +80,10 @@ async def registrar(
     req: esquemas.RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Registro público inhabilitado intencionalmente."""
+    """El registro publico esta deshabilitado. Solo el admin puede crear usuarios."""
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail="El registro público no está disponible. Contacta al administrador.",
+        detail="El registro publico no esta disponible. Contacta al administrador.",
     )
 
 
@@ -87,9 +91,9 @@ async def registrar(
 async def cerrar_sesion(
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Elimina al usuario de la lista de conectados."""
+    """Saca al usuario de la lista de conectados."""
     usuarios_conectados.pop(usuario_actual.id, None)
-    return {"mensaje": "Sesión cerrada"}
+    return {"mensaje": "Sesion cerrada"}
 
 
 @router.get("/me", response_model=esquemas.UserResponse)
@@ -97,7 +101,7 @@ async def obtener_perfil(
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
     db: AsyncSession = Depends(get_db),
 ):
-    """Devuelve los datos del usuario autenticado."""
+    """Devuelve los datos del usuario logueado (nombre, email, rol)."""
     rol = await obtener_rol_usuario(usuario_actual, db)
     return {
         "id": usuario_actual.id,
@@ -114,19 +118,19 @@ async def cambiar_password(
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
     db: AsyncSession = Depends(get_db),
 ):
-    """Cambia la contraseña del usuario autenticado."""
+    """Cambia la contrasena del usuario actual. Requiere la contrasena actual y confirmar la nueva."""
     if req.new_password != req.confirm_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Las nuevas contraseñas no coinciden",
+            detail="Las nuevas contrasenas no coinciden",
         )
 
     if not verificar_password(req.current_password, usuario_actual.contrasena_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="La contraseña actual es incorrecta",
+            detail="La contrasena actual es incorrecta",
         )
 
     usuario_actual.contrasena_hash = generar_hash(req.new_password)
     await db.commit()
-    return {"message": "Contraseña actualizada exitosamente"}
+    return {"message": "Contrasena actualizada exitosamente"}

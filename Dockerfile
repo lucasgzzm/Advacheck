@@ -10,9 +10,9 @@ WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app/ ./app/
-COPY --from=frontend-build /frontend/dist ./static
-RUN mkdir -p uploads
+COPY --from=frontend-build /frontend/dist ./estatico
+RUN mkdir -p cargas
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD uvicorn app.principal:app --host 0.0.0.0 --port ${PORT:-8000}

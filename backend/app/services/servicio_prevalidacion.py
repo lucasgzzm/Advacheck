@@ -25,6 +25,7 @@ from ..utilidades import (
     verificar_cuadre_cif
 )
 
+# Patrones de regex para validar campos comunes en facturas
 PATRONES_CONFIANZA = {
     "numero_factura": r'^[A-Za-z0-9][A-Za-z0-9\-\/\.\#]{1,30}$',
     "moneda": r'^[A-Z]{3}$',
@@ -33,12 +34,15 @@ PATRONES_CONFIANZA = {
     "tax_id": r'^[A-Za-z0-9\.\-]{4,20}$',
 }
 
+
 def evaluar_confianza_extraccion(datos: dict) -> dict:
-    """Evalúa la confianza de cada campo extraído del documento."""
+    """Evalua que tan confiables son los campos extraidos por Gemini.
+    Cada campo recibe un puntaje de 0 a 100 segun su formato, coherencia y completitud.
+    """
     confianza = {}
     base = 85
 
-    # --- numero_factura ---
+    # numero_factura
     nf = (datos.get("numero_factura") or "").strip()
     if not nf or nf in ("N/A", "NA", "n/a", "S/N", "0"):
         confianza["numero_factura"] = 15
@@ -49,7 +53,7 @@ def evaluar_confianza_extraccion(datos: dict) -> dict:
     else:
         confianza["numero_factura"] = 35
 
-    # --- monto_total ---
+    # monto_total
     mt = _float(datos.get("monto_total") or datos.get("monto_total_cif"))
     if mt <= 0:
         confianza["monto_total"] = 10
@@ -58,25 +62,25 @@ def evaluar_confianza_extraccion(datos: dict) -> dict:
     else:
         confianza["monto_total"] = base
 
-    # --- subtotal ---
+    # subtotal
     st = _float(datos.get("monto_subtotal"))
     confianza["monto_subtotal"] = base if st > 0 else 40
 
-    # --- flete ---
+    # flete
     fl = _float(datos.get("monto_flete"))
     if fl < 0:
         confianza["monto_flete"] = 20
     else:
         confianza["monto_flete"] = 85 if fl > 0 else 70
 
-    # --- seguro ---
+    # seguro
     sg = _float(datos.get("monto_seguro"))
     if sg < 0:
         confianza["monto_seguro"] = 20
     else:
         confianza["monto_seguro"] = 85 if sg > 0 else 70
 
-    # --- incoterm ---
+    # incoterm
     inc = (datos.get("incoterm") or "").strip().upper()
     if not inc:
         confianza["incoterm"] = 15
@@ -85,7 +89,7 @@ def evaluar_confianza_extraccion(datos: dict) -> dict:
     else:
         confianza["incoterm"] = 40
 
-    # --- moneda ---
+    # moneda
     mon = (datos.get("moneda") or "").strip().upper()
     if not mon:
         confianza["moneda"] = 20
@@ -94,7 +98,7 @@ def evaluar_confianza_extraccion(datos: dict) -> dict:
     else:
         confianza["moneda"] = 50
 
-    # --- fecha_emision ---
+    # fecha_emision
     fe = datos.get("fecha_emision") or ""
     if not fe:
         confianza["fecha_emision"] = 15
@@ -106,11 +110,11 @@ def evaluar_confianza_extraccion(datos: dict) -> dict:
         except (ValueError, TypeError):
             confianza["fecha_emision"] = 40
 
-    # --- pais_origen ---
+    # pais_origen
     po = datos.get("pais_origen") or ""
     confianza["pais_origen"] = base if len(po) >= 2 else 30
 
-    # --- emisor ---
+    # emisor
     emisor = datos.get("emisor") or {}
     em_nombre = (emisor.get("nombre") or "").strip()
     if not em_nombre or em_nombre in ("Desconocido", "No detectado", "N/A"):
@@ -128,7 +132,7 @@ def evaluar_confianza_extraccion(datos: dict) -> dict:
     else:
         confianza["emisor_tax_id"] = 50
 
-    # --- receptor ---
+    # receptor
     receptor = datos.get("receptor") or {}
     rc_nombre = (receptor.get("nombre") or datos.get("receptor_nombre") or "").strip()
     confianza["receptor_nombre"] = base if len(rc_nombre) >= 5 else 30
@@ -141,7 +145,7 @@ def evaluar_confianza_extraccion(datos: dict) -> dict:
     else:
         confianza["receptor_tax_id"] = 50
 
-    # --- detalles (por ítem) ---
+    # detalles (por item)
     detalles = datos.get("detalles") or []
     for i, d in enumerate(detalles):
         if _float(d.get("cantidad")) <= 0:
@@ -162,12 +166,12 @@ def evaluar_confianza_extraccion(datos: dict) -> dict:
         else:
             confianza[f"detalle_{i}_descripcion"] = base
 
-    # --- Penalización por validacion_error ---
+    # Penalizacion si la validacion CIF no cuadra
     if datos.get("validacion_error"):
         for k in confianza:
             confianza[k] = min(confianza[k], 50)
 
-    # --- Cuadratura de ítems vs total declarado ---
+    # Cuadratura de items vs total
     suma_items = sum(
         _float(d.get("cantidad", 0)) * _float(d.get("precio_unitario", 0))
         for d in detalles
@@ -183,11 +187,13 @@ def evaluar_confianza_extraccion(datos: dict) -> dict:
 
 
 def verificar_cuadratura_items(datos: dict) -> dict:
-    """Verifica que la suma de ítems coincida con el subtotal o total CIF."""
+    """Verifica que la suma de (cantidad x precio_unitario) de los items coincida
+    con el subtotal o total CIF declarado.
+    """
     detalles = datos.get("detalles") or []
     moneda = datos.get("moneda") or "USD"
     if not detalles:
-        return {"ejecutado": False, "mensaje": "No hay detalles (ítems) en la factura.", "items": []}
+        return {"ejecutado": False, "mensaje": "No hay detalles (items) en la factura.", "items": []}
 
     suma_items = sum(
         _float(d.get("cantidad", 0)) * _float(d.get("precio_unitario", 0))
@@ -215,7 +221,7 @@ def verificar_cuadratura_items(datos: dict) -> dict:
         pu = _float(d.get("precio_unitario"))
         items_detalle.append({
             "indice": i,
-            "descripcion": (d.get("descripcion_producto") or f"Ítem #{i+1}")[:60],
+            "descripcion": (d.get("descripcion_producto") or f"Item #{i+1}")[:60],
             "cantidad": cant,
             "precio_unitario": pu,
             "subtotal_calculado": round(cant * pu, 2),
@@ -223,21 +229,21 @@ def verificar_cuadratura_items(datos: dict) -> dict:
 
     if coincide:
         if tipo_comp == "subtotal":
-            msg = f"Suma de ítems ({suma_items:.2f}) coincide con el subtotal declarado ({total_ref:.2f}) {moneda}. CIF total: {total_cif:.2f}."
+            msg = f"Suma de items ({suma_items:.2f}) coincide con el subtotal declarado ({total_ref:.2f}) {moneda}. CIF total: {total_cif:.2f}."
         else:
-            msg = f"Suma de ítems ({suma_items:.2f}) coincide con el total CIF declarado ({total_ref:.2f}) {moneda}."
+            msg = f"Suma de items ({suma_items:.2f}) coincide con el total CIF declarado ({total_ref:.2f}) {moneda}."
     else:
         if tipo_comp == "subtotal":
             msg = (
-                f"Suma de ítems ({suma_items:.2f}) ≠ subtotal declarado ({total_ref:.2f}) {moneda}. "
+                f"Suma de items ({suma_items:.2f}) != subtotal declarado ({total_ref:.2f}) {moneda}. "
                 f"Diferencia: {diff:.2f} ({diff_pct:.1f}%). "
                 f"El CIF total ({total_cif:.2f}) incluye flete/seguro/otros."
             )
         else:
             msg = (
-                f"Suma de ítems ({suma_items:.2f}) ≠ total CIF declarado ({total_ref:.2f}) {moneda}. "
+                f"Suma de items ({suma_items:.2f}) != total CIF declarado ({total_ref:.2f}) {moneda}. "
                 f"Diferencia: {diff:.2f} ({diff_pct:.1f}%). "
-                f"Verificar si flete/seguro/otros están incluidos en el total."
+                f"Verificar si flete/seguro/otros estan incluidos en el total."
             )
 
     return {
@@ -257,7 +263,7 @@ def verificar_cuadratura_items(datos: dict) -> dict:
 
 
 class ControlPrevalidacion:
-    """Representa un control individual dentro de una etapa de prevalidación."""
+    """Un control individual dentro de una etapa. Ej: 'numero_factura' con estado PASS/FAIL."""
     def __init__(self, nombre: str, estado: ESTADO, mensaje: str, detalle: Optional[str] = None):
         self.nombre = nombre
         self.estado = estado
@@ -265,7 +271,6 @@ class ControlPrevalidacion:
         self.detalle = detalle
 
     def to_dict(self) -> dict:
-        """Convierte el control a diccionario serializable."""
         return {
             "nombre": self.nombre,
             "estado": self.estado,
@@ -275,7 +280,9 @@ class ControlPrevalidacion:
 
 
 class EtapaPrevalidacion:
-    """Agrupa controles de prevalidación en una etapa lógica del proceso."""
+    """Una etapa del proceso de prevalidacion (Ej: 'Validacion Documental').
+    Contiene una lista de controles y se auto-evalua segun los resultados.
+    """
     def __init__(
         self,
         numero: int,
@@ -293,11 +300,10 @@ class EtapaPrevalidacion:
         self.resumen = resumen
 
     def agregar_control(self, control: ControlPrevalidacion) -> None:
-        """Agrega un control a la etapa."""
         self.controles.append(control)
 
     def calcular_estado(self) -> None:
-        """Recalcula el estado de la etapa según los controles actuales."""
+        """Si algun control es FAIL, la etapa es FAIL. Si hay WARNING, es WARNING. Sino PASS."""
         if not self.controles:
             self.estado = "NO_EJECUTADA"
             return
@@ -309,7 +315,6 @@ class EtapaPrevalidacion:
             self.estado = "PASS"
 
     def to_dict(self) -> dict:
-        """Convierte la etapa y sus controles a diccionario serializable."""
         return {
             "numero": self.numero,
             "titulo": self.titulo,
@@ -320,30 +325,32 @@ class EtapaPrevalidacion:
         }
 
 
-
-
 class ServicioPrevalidacionAduanera:
-    """Orquesta las 7 etapas de prevalidación aduanera sobre una factura."""
+    """Motor de prevalidacion aduanera: ejecuta 7 etapas sobre una factura
+    y devuelve un riesgo global (BAJO/MEDIO/ALTO/CRITICO).
+    """
 
     @staticmethod
     def etapa1_validacion_formal(doc: dict) -> EtapaPrevalidacion:
-        """Valida que la factura tenga datos mínimos obligatorios."""
+        """Valida que la factura tenga los datos minimos obligatorios:
+        numero, fecha, moneda, incoterm, monto, exportador y (si Chile) RUT.
+        """
         etapa = EtapaPrevalidacion(
             numero=1,
-            titulo="Validación Documental y Formal",
-            descripcion="Verifica que la factura contenga todos los datos mínimos obligatorios para su admisibilidad.",
+            titulo="Validacion Documental y Formal",
+            descripcion="Verifica que la factura contenga todos los datos minimos obligatorios para su admisibilidad.",
         )
         numero = doc.get("numero_factura") or ""
         etapa.agregar_control(ControlPrevalidacion(
             "numero_factura",
             "FAIL" if not numero.strip() else "PASS",
-            "Número de factura no detectado." if not numero.strip() else f"Número de factura: {numero}",
+            "Numero de factura no detectado." if not numero.strip() else f"Numero de factura: {numero}",
         ))
         fecha = doc.get("fecha_emision") or ""
         etapa.agregar_control(ControlPrevalidacion(
             "fecha_emision",
             "FAIL" if not fecha else "PASS",
-            "Fecha de emisión no detectada." if not fecha else f"Fecha de emisión: {fecha}",
+            "Fecha de emision no detectada." if not fecha else f"Fecha de emision: {fecha}",
         ))
         moneda = doc.get("moneda") or ""
         etapa.agregar_control(ControlPrevalidacion(
@@ -361,7 +368,7 @@ class ServicioPrevalidacionAduanera:
         etapa.agregar_control(ControlPrevalidacion(
             "monto_total",
             "FAIL" if monto <= 0 else "PASS",
-            "Monto total inválido o cero." if monto <= 0 else f"Monto total: {monto} {doc.get('moneda', 'USD')}",
+            "Monto total invalido o cero." if monto <= 0 else f"Monto total: {monto} {doc.get('moneda', 'USD')}",
         ))
         emisor = doc.get("emisor") or {}
         emisor_nombre = emisor.get("nombre") or ""
@@ -387,11 +394,13 @@ class ServicioPrevalidacionAduanera:
 
     @staticmethod
     def etapa2_validacion_cif(doc: dict) -> EtapaPrevalidacion:
-        """Verifica el cálculo CIF (FOB+Flete+Seguro+Otros) y asignación de partidas."""
+        """Verifica el calculo CIF: que subtotal + flete + seguro + otros = total declarado.
+        Tambien revisa que los items tengan partida arancelaria y que el Incoterm sea coherente con flete/seguro.
+        """
         etapa = EtapaPrevalidacion(
             numero=2,
-            titulo="Validación Comercial CIF + SQUARE",
-            descripcion="Verifica el cálculo aritmético aduanero (FOB + Flete + Seguro + Otros = CIF) y asigna la partida arancelaria correcta.",
+            titulo="Validacion Comercial CIF + SQUARE",
+            descripcion="Verifica el calculo aritmetico aduanero (FOB + Flete + Seguro + Otros = CIF) y asigna la partida arancelaria correcta.",
         )
         subtotal = _float(doc.get("monto_subtotal") or doc.get("subtotal"))
         flete = _float(doc.get("monto_flete") or doc.get("flete"))
@@ -421,9 +430,9 @@ class ServicioPrevalidacionAduanera:
             etapa.agregar_control(ControlPrevalidacion(
                 "asignacion_partida",
                 "FAIL" if items_sin_partida == total_items else "WARNING" if items_sin_partida > 0 else "PASS",
-                f"{items_sin_partida} de {total_items} ítems sin partida arancelaria asignada."
+                f"{items_sin_partida} de {total_items} items sin partida arancelaria asignada."
                 if items_sin_partida > 0
-                else f"Todos los {total_items} ítems tienen partida arancelaria.",
+                else f"Todos los {total_items} items tienen partida arancelaria.",
             ))
 
         incoterm = (doc.get("incoterm") or "").upper()
@@ -446,17 +455,19 @@ class ServicioPrevalidacionAduanera:
 
     @staticmethod
     def etapa3_validacion_normativa(doc: dict) -> EtapaPrevalidacion:
-        """Cruza partidas arancelarias contra entidades fiscalizadoras para identificar permisos."""
+        """Cruza las partidas arancelarias contra el catalogo de entidades regulatorias
+        (SENASA, ISP, COFEPRIS, etc.) y detecta que V°B° se necesitan.
+        """
         etapa = EtapaPrevalidacion(
             numero=3,
-            titulo="Validación Normativa (Vistos Buenos)",
-            descripcion="Cruza cada partida arancelaria contra el catálogo de entidades fiscalizadoras para identificar permisos requeridos.",
+            titulo="Validacion Normativa (Vistos Buenos)",
+            descripcion="Cruza cada partida arancelaria contra el catalogo de entidades fiscalizadoras para identificar permisos requeridos.",
         )
         detalles = doc.get("detalles") or []
         vistos_buenos_aprobados = set(doc.get("vistos_buenos_aprobados") or [])
         if not detalles:
             etapa.agregar_control(ControlPrevalidacion(
-                "detalles_disponibles", "FAIL", "No hay detalles (ítems) en la factura para evaluar requisitos regulatorios."
+                "detalles_disponibles", "FAIL", "No hay detalles (items) en la factura para evaluar requisitos regulatorios."
             ))
             etapa.calcular_estado()
             return etapa
@@ -481,7 +492,7 @@ class ServicioPrevalidacionAduanera:
         if items_sin_partida == len(detalles):
             etapa.agregar_control(ControlPrevalidacion(
                 "partidas_disponibles", "WARNING",
-                "Ningún ítem tiene partida arancelaria asignada. No es posible determinar requisitos regulatorios."
+                "Ningun item tiene partida arancelaria asignada. No es posible determinar requisitos regulatorios."
             ))
             etapa.calcular_estado()
             return etapa
@@ -499,14 +510,14 @@ class ServicioPrevalidacionAduanera:
         if not permisos_faltantes:
             etapa.agregar_control(ControlPrevalidacion(
                 "permisos_cubiertos", "PASS",
-                f"Todos los V°B° regulatorios están cubiertos ({len(entidades_requeridas)} entidades)."
+                f"Todos los V°B° regulatorios estan cubiertos ({len(entidades_requeridas)} entidades)."
             ))
         else:
             entidades_str = ", ".join(
                 f"{e['entidad']} ({e['tipo_permiso']})" for e in permisos_faltantes[:5]
             )
             if len(permisos_faltantes) > 5:
-                entidades_str += f" y {len(permisos_faltantes) - 5} más"
+                entidades_str += f" y {len(permisos_faltantes) - 5} mas"
             etapa.agregar_control(ControlPrevalidacion(
                 "permisos_faltantes",
                 "FAIL" if len(permisos_faltantes) > 2 else "WARNING",
@@ -523,11 +534,13 @@ class ServicioPrevalidacionAduanera:
 
     @staticmethod
     def etapa4_validacion_pesos(doc: dict, packing_list: Optional[dict] = None, bl: Optional[dict] = None) -> EtapaPrevalidacion:
-        """Cruza pesos, bultos y cantidades entre Factura, Packing List y BL."""
+        """Cruza pesos, bultos y cantidades entre Factura, Packing List y BL.
+        Ademas verifica que el nombre del proveedor coincida entre Factura y BL.
+        """
         etapa = EtapaPrevalidacion(
             numero=4,
-            titulo="Validación de Pesos, Bultos y Cantidades",
-            descripcion="Cruza peso bruto, número de bultos y cantidades entre Factura, Packing List y BL/AWB.",
+            titulo="Validacion de Pesos, Bultos y Cantidades",
+            descripcion="Cruza peso bruto, numero de bultos y cantidades entre Factura, Packing List y BL/AWB.",
         )
         factura_peso = _float(
             _obtener_valor(doc, "peso_bruto") or
@@ -565,7 +578,7 @@ class ServicioPrevalidacionAduanera:
             if diff_peso <= tolerancia_kg:
                 etapa.agregar_control(ControlPrevalidacion(
                     "peso_factura_vs_bl", "PASS",
-                    f"Peso bruto Factura({factura_peso}kg) ≈ BL({bl_peso}kg). Diff: {diff_peso:.1f}kg.",
+                    f"Peso bruto Factura({factura_peso}kg) aprox. BL({bl_peso}kg). Diff: {diff_peso:.1f}kg.",
                 ))
             elif pct_peso > 10:
                 etapa.agregar_control(ControlPrevalidacion(
@@ -588,12 +601,12 @@ class ServicioPrevalidacionAduanera:
             if diff <= tolerancia_kg:
                 etapa.agregar_control(ControlPrevalidacion(
                     "peso_pl_vs_bl", "PASS",
-                    f"Peso Packing List({pl_peso}kg) ≈ BL({bl_peso}kg).",
+                    f"Peso Packing List({pl_peso}kg) aprox. BL({bl_peso}kg).",
                 ))
             else:
                 etapa.agregar_control(ControlPrevalidacion(
                     "peso_pl_vs_bl", "WARNING",
-                    f"Peso Packing List({pl_peso}kg) ≠ BL({bl_peso}kg). Diff: {diff}kg.",
+                    f"Peso Packing List({pl_peso}kg) != BL({bl_peso}kg). Diff: {diff}kg.",
                 ))
 
         if factura_bultos > 0 and bl_bultos and bl_bultos > 0:
@@ -601,24 +614,24 @@ class ServicioPrevalidacionAduanera:
             if diff_b <= tolerancia_bultos:
                 etapa.agregar_control(ControlPrevalidacion(
                     "bultos_factura_vs_bl", "PASS",
-                    f"Bultos Factura({int(factura_bultos)}) ≈ BL({int(bl_bultos)}).",
+                    f"Bultos Factura({int(factura_bultos)}) aprox. BL({int(bl_bultos)}).",
                 ))
             else:
                 etapa.agregar_control(ControlPrevalidacion(
                     "bultos_factura_vs_bl", "FAIL",
-                    f"Bultos Factura({int(factura_bultos)}) ≠ BL({int(bl_bultos)}). Diferencia > {tolerancia_bultos}.",
+                    f"Bultos Factura({int(factura_bultos)}) != BL({int(bl_bultos)}). Diferencia > {tolerancia_bultos}.",
                 ))
         elif pl_bultos and pl_bultos > 0 and bl_bultos and bl_bultos > 0:
             diff_b = abs(pl_bultos - bl_bultos)
             if diff_b <= tolerancia_bultos:
                 etapa.agregar_control(ControlPrevalidacion(
                     "bultos_pl_vs_bl", "PASS",
-                    f"Bultos Packing List({int(pl_bultos)}) ≈ BL({int(bl_bultos)}).",
+                    f"Bultos Packing List({int(pl_bultos)}) aprox. BL({int(bl_bultos)}).",
                 ))
             else:
                 etapa.agregar_control(ControlPrevalidacion(
                     "bultos_pl_vs_bl", "FAIL",
-                    f"Bultos Packing List({int(pl_bultos)}) ≠ BL({int(bl_bultos)}).",
+                    f"Bultos Packing List({int(pl_bultos)}) != BL({int(bl_bultos)}).",
                 ))
 
         detalles_factura = doc.get("detalles") or []
@@ -632,7 +645,7 @@ class ServicioPrevalidacionAduanera:
                 if pct_q <= 5:
                     etapa.agregar_control(ControlPrevalidacion(
                         "cantidad_total", "PASS",
-                        f"Cantidad total Factura({qty_factura:.0f}) ≈ Packing List({qty_pl:.0f}).",
+                        f"Cantidad total Factura({qty_factura:.0f}) aprox. Packing List({qty_pl:.0f}).",
                     ))
                 else:
                     etapa.agregar_control(ControlPrevalidacion(
@@ -662,11 +675,13 @@ class ServicioPrevalidacionAduanera:
 
     @staticmethod
     def etapa5_validacion_valoracion(doc: dict) -> EtapaPrevalidacion:
-        """Verifica Incoterm, ajustes al valor aduanero y vinculación."""
+        """Verifica consistencia del Incoterm, coherencia de precios, descuentos,
+        regalias y relacion de vinculacion comprador-vendedor.
+        """
         etapa = EtapaPrevalidacion(
             numero=5,
-            titulo="Validación de Regímenes y Valoración",
-            descripcion="Verifica consistencia del Incoterm, ajustes al valor aduanero (royalties, descuentos, comisiones) y relación comprador-vendedor.",
+            titulo="Validacion de Regimenes y Valoracion",
+            descripcion="Verifica consistencia del Incoterm, ajustes al valor aduanero (royalties, descuentos, comisiones) y relacion comprador-vendedor.",
         )
         incoterm = (doc.get("incoterm") or "").upper()
         detalles = doc.get("detalles") or []
@@ -700,7 +715,7 @@ class ServicioPrevalidacionAduanera:
             elif incoterm == "EXW" and (flete > 0 or seguro > 0):
                 etapa.agregar_control(ControlPrevalidacion(
                     "exw_cargos", "WARNING",
-                    "EXW: flete y seguro son responsabilidad del comprador. Verificar que no estén duplicados.",
+                    "EXW: flete y seguro son responsabilidad del comprador. Verificar que no esten duplicados.",
                 ))
             elif incoterm == "FOB" and (flete > 0 or seguro > 0):
                 etapa.agregar_control(ControlPrevalidacion(
@@ -708,17 +723,47 @@ class ServicioPrevalidacionAduanera:
                     "FOB con flete/seguro incluidos. Estos deben declararse por separado para el valor CIF.",
                 ))
 
+        # Leemos los montos clave del documento
         total = _float(doc.get("monto_total") or doc.get("monto_total_cif") or doc.get("total"))
+        subtotal_declarado = _float(doc.get("monto_subtotal") or doc.get("subtotal"))
+        flete = _float(doc.get("monto_flete") or doc.get("flete"))
+        seguro = _float(doc.get("monto_seguro") or doc.get("seguro"))
+        otros = _float(doc.get("monto_otros_gastos") or doc.get("otros_gastos"))
+
+        # Calculamos cuanto suman los items de la factura (cantidad x precio unitario)
         subtotal_items = sum(
             _float(d.get("cantidad", 0)) * _float(d.get("precio_unitario", 0))
             for d in detalles
         )
-        if total > 0 and subtotal_items > 0:
-            diff_val = abs(subtotal_items - total)
-            if diff_val > 10.0 and diff_val / total > 0.02:
+
+        if subtotal_items <= 0:
+            pass
+
+        elif subtotal_declarado > 0:
+            # Escenario 1: la factura declara un subtotal por separado.
+            # Comparamos los items contra ese subtotal, que es lo correcto
+            # (el subtotal no incluye flete/seguro/otros).
+            diff_val = abs(subtotal_items - subtotal_declarado)
+            if diff_val > 10.0 and diff_val / subtotal_declarado > 0.02:
                 etapa.agregar_control(ControlPrevalidacion(
                     "coherencia_precios", "WARNING",
-                    f"Suma de items ({subtotal_items:.2f}) difiere del total ({total:.2f}) en {diff_val:.2f} {moneda}.",
+                    f"Suma de items ({subtotal_items:.2f}) difiere del subtotal declarado ({subtotal_declarado:.2f}) en {diff_val:.2f} {moneda}.",
+                ))
+
+        elif total > 0:
+            # Escenario 2: no hay subtotal separado. Intentamos ver si
+            # items + flete + seguro + otros cuadra con el total de factura.
+            # Esto cubre casos como subtotal 73.25 + flete 30.68 = total 103.93.
+            total_esperado = subtotal_items + flete + seguro + otros
+            diff_val = abs(total_esperado - total)
+
+            if diff_val > 10.0 and diff_val / total > 0.02:
+                # Escenario 3: tampoco cuadra sumando los cargos.
+                # Probablemente falta informacion o hay un error real.
+                etapa.agregar_control(ControlPrevalidacion(
+                    "coherencia_precios", "WARNING",
+                    f"Suma de items ({subtotal_items:.2f}) + cargos ({flete+seguro+otros:.2f}) = {total_esperado:.2f} "
+                    f"difiere del total ({total:.2f}) en {diff_val:.2f} {moneda}.",
                 ))
 
         for i, d in enumerate(detalles):
@@ -727,16 +772,16 @@ class ServicioPrevalidacionAduanera:
             if precio <= 0:
                 etapa.agregar_control(ControlPrevalidacion(
                     f"precio_item_{i}", "WARNING",
-                    f"Ítem '{desc}' tiene precio unitario {precio}.",
+                    f"Item '{desc}' tiene precio unitario {precio}.",
                 ))
 
-        # Descuentos y ajustes
+        # Descuentos
         descuentos = doc.get("descuentos") or doc.get("discounts")
         if descuentos:
             if isinstance(descuentos, (int, float)) and descuentos > 0:
                 etapa.agregar_control(ControlPrevalidacion(
                     "descuentos_documentados", "WARNING",
-                    f"Descuento detectado ({descuentos} {moneda}). Verificar documentación de respaldo.",
+                    f"Descuento detectado ({descuentos} {moneda}). Verificar documentacion de respaldo.",
                 ))
             elif isinstance(descuentos, list) and len(descuentos) > 0:
                 total_desc = sum(_float(d.get("monto", 0)) for d in descuentos if isinstance(d, dict))
@@ -746,17 +791,17 @@ class ServicioPrevalidacionAduanera:
                         f"Descuento(s) detectado(s) por {total_desc:.2f} {moneda}. Deben estar documentados.",
                     ))
 
-        # Regalías / Asistencia técnica
+        # Regalias / Asistencia tecnica
         regalias = doc.get("regalias") or doc.get("royalties")
         if regalias:
             monto_reg = _float(regalias.get("monto", regalias) if isinstance(regalias, dict) else regalias)
             if monto_reg > 0:
                 etapa.agregar_control(ControlPrevalidacion(
                     "regalias", "WARNING",
-                    f"Regalías o asistencia técnica detectada ({monto_reg} {moneda}). Debe agregarse al valor aduanero.",
+                    f"Regalias o asistencia tecnica detectada ({monto_reg} {moneda}). Debe agregarse al valor aduanero.",
                 ))
 
-        # Relación comprador-vendedor
+        # Relacion comprador-vendedor
         relacion = doc.get("relacion_vinculacion") or doc.get("related_party")
         if relacion:
             if isinstance(relacion, str):
@@ -764,7 +809,7 @@ class ServicioPrevalidacionAduanera:
             if relacion:
                 etapa.agregar_control(ControlPrevalidacion(
                     "vinculacion", "WARNING",
-                    "Partes vinculadas detectadas. Verificar que el valor de transacción refleje el precio realmente pagado.",
+                    "Partes vinculadas detectadas. Verificar que el valor de transaccion refleje el precio realmente pagado.",
                 ))
 
         etapa.calcular_estado()
@@ -774,11 +819,11 @@ class ServicioPrevalidacionAduanera:
 
     @staticmethod
     def etapa6_validacion_plazos(doc: dict, bl: Optional[dict] = None) -> EtapaPrevalidacion:
-        """Verifica vigencia de factura, BL y póliza de seguro."""
+        """Verifica que la factura y el BL esten dentro de plazos validos y que el seguro este vigente."""
         etapa = EtapaPrevalidacion(
             numero=6,
-            titulo="Validación de Plazos y Vigencias",
-            descripcion="Verifica que la factura y el BL estén dentro de plazos válidos y que los permisos estén vigentes.",
+            titulo="Validacion de Plazos y Vigencias",
+            descripcion="Verifica que la factura y el BL esten dentro de plazos validos y que los permisos esten vigentes.",
         )
         ahora = datetime.now()
         fecha_factura_str = doc.get("fecha_emision") or ""
@@ -790,12 +835,12 @@ class ServicioPrevalidacionAduanera:
                 if dias <= 60:
                     etapa.agregar_control(ControlPrevalidacion(
                         "vigencia_factura", "PASS",
-                        f"Factura emitida hace {dias} día(s). Dentro del plazo de 60 días.",
+                        f"Factura emitida hace {dias} dia(s). Dentro del plazo de 60 dias.",
                     ))
                 else:
                     etapa.agregar_control(ControlPrevalidacion(
                         "vigencia_factura", "FAIL",
-                        f"Factura emitida hace {dias} día(s). Excede el plazo de 60 días para numeración.",
+                        f"Factura emitida hace {dias} dia(s). Excede el plazo de 60 dias para numeracion.",
                     ))
             except ValueError:
                 etapa.agregar_control(ControlPrevalidacion(
@@ -804,7 +849,7 @@ class ServicioPrevalidacionAduanera:
                 ))
         else:
             etapa.agregar_control(ControlPrevalidacion(
-                "vigencia_factura", "FAIL", "Fecha de emisión no disponible. No se puede verificar vigencia."
+                "vigencia_factura", "FAIL", "Fecha de emision no disponible. No se puede verificar vigencia."
             ))
 
         if bl:
@@ -817,12 +862,12 @@ class ServicioPrevalidacionAduanera:
                     if dias_bl <= 30:
                         etapa.agregar_control(ControlPrevalidacion(
                             "vigencia_bl", "PASS",
-                            f"BL emitido hace {dias_bl} día(s). Dentro del plazo de 30 días.",
+                            f"BL emitido hace {dias_bl} dia(s). Dentro del plazo de 30 dias.",
                         ))
                     else:
                         etapa.agregar_control(ControlPrevalidacion(
                             "vigencia_bl", "WARNING",
-                            f"BL emitido hace {dias_bl} día(s). Excede plazo recomendado de 30 días.",
+                            f"BL emitido hace {dias_bl} dia(s). Excede plazo recomendado de 30 dias.",
                         ))
                 except ValueError:
                     etapa.agregar_control(ControlPrevalidacion(
@@ -848,12 +893,12 @@ class ServicioPrevalidacionAduanera:
                     if f_desde <= ahora <= f_hasta:
                         etapa.agregar_control(ControlPrevalidacion(
                             "cobertura_seguro", "PASS",
-                            "Póliza de seguro vigente (cubre la fecha actual).",
+                            "Poliza de seguro vigente (cubre la fecha actual).",
                         ))
                     else:
                         etapa.agregar_control(ControlPrevalidacion(
                             "cobertura_seguro", "FAIL",
-                            "Póliza de seguro NO vigente. Fecha fuera del período de cobertura.",
+                            "Poliza de seguro NO vigente. Fecha fuera del periodo de cobertura.",
                         ))
                 except ValueError:
                     etapa.agregar_control(ControlPrevalidacion(
@@ -863,12 +908,12 @@ class ServicioPrevalidacionAduanera:
             elif seguro_poliza.get("numero") or seguro_poliza.get("numero_poliza"):
                 etapa.agregar_control(ControlPrevalidacion(
                     "cobertura_seguro", "WARNING",
-                    "Póliza de seguro declarada pero sin fechas de cobertura. Verificar vigencia manualmente.",
+                    "Poliza de seguro declarada pero sin fechas de cobertura. Verificar vigencia manualmente.",
                 ))
         elif seguro_poliza:
             etapa.agregar_control(ControlPrevalidacion(
                 "cobertura_seguro", "WARNING",
-                "Seguro declarado pero sin detalle de póliza. Verificar cobertura.",
+                "Seguro declarado pero sin detalle de poliza. Verificar cobertura.",
             ))
 
         etapa.calcular_estado()
@@ -878,10 +923,12 @@ class ServicioPrevalidacionAduanera:
 
     @staticmethod
     def etapa7_preclasificacion_riesgo(etapas: list[EtapaPrevalidacion]) -> EtapaPrevalidacion:
-        """Agrega todas las etapas en un scoring unificado de riesgo."""
+        """Toma los resultados de las 6 etapas anteriores y calcula un scoring unificado.
+        Cada etapa tiene un peso distinto. El resultado final es BAJO, MEDIO, ALTO o CRITICO.
+        """
         etapa = EtapaPrevalidacion(
             numero=7,
-            titulo="Preclasificación de Riesgo",
+            titulo="Preclasificacion de Riesgo",
             descripcion="Agrega todas las etapas anteriores en un scoring unificado de riesgo.",
         )
         pesos_etapa = {1: 10, 2: 20, 3: 20, 4: 15, 5: 20, 6: 15}
@@ -917,7 +964,7 @@ class ServicioPrevalidacionAduanera:
 
         etapa.agregar_control(ControlPrevalidacion(
             "scoring_final", "PASS" if nivel == NivelRiesgo.BAJO.value else "WARNING" if nivel == NivelRiesgo.MEDIO.value else "FAIL",
-            f"Riesgo: {nivel}. Puntaje: {pct}% (máx: {puntaje_maximo}, obtenido: {puntaje_total:.1f}).",
+            f"Riesgo: {nivel}. Puntaje: {pct}% (max: {puntaje_maximo}, obtenido: {puntaje_total:.1f}).",
             detalle=str({"puntaje_total": round(puntaje_total, 1), "puntaje_maximo": puntaje_maximo, "porcentaje": pct, "resultados_por_etapa": resultados_por_etapa}),
         ))
         etapa.calcular_estado()
@@ -933,7 +980,9 @@ class ServicioPrevalidacionAduanera:
         packing_list: Optional[dict] = None,
         bl: Optional[dict] = None,
     ) -> dict:
-        """Ejecuta las 7 etapas de prevalidación y retorna el resultado completo."""
+        """Punto de entrada: ejecuta las 7 etapas en orden y devuelve el resultado completo
+        con riesgo global, puntaje y detalle de cada etapa.
+        """
         e1 = cls.etapa1_validacion_formal(factura)
         e2 = cls.etapa2_validacion_cif(factura)
         e3 = cls.etapa3_validacion_normativa(factura)

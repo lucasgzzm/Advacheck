@@ -22,8 +22,7 @@ Thumbs.db
 *.db
 
 # Proyecto
-backend/uploads/
-backend/almacenamiento_pdf/
+backend/cargas/
 scratch_*.py
 datos_arancel.json
 datos_clasificacion.json

@@ -14,19 +14,65 @@ from ..services.servicio_auditoria import registrar_auditoria
 from ..base_datos import get_db
 from ..dependencias import obtener_usuario_actual, obtener_rol_usuario, obtener_documento_seguro
 from ..services.servicio_archivo_intercambio import generar_xml_intercambio, generar_json_intercambio
-from ..config import UPLOAD_DIR
+from ..services.servicio_correo import enviar_correo_aclaracion, enviar_correo_con_adjunto
+from ..services.servicio_informe import generar_pdf_informe
+from ..configuracion import UPLOAD_DIR
 
 router = APIRouter(prefix="/api/documentos", tags=["Documentos"])
 
+@router.get("/limite")
+async def obtener_limite_documentos(
+    db: AsyncSession = Depends(get_db),
+    usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
+):
+    """Devuelve cuántos documentos ha subido el usuario en la última hora y cuál es su límite.
+    También retorna proxima_recarga: el momento exacto (ISO 8601 UTC) en que el slot más antiguo
+    se libera (es decir, cuando el documento más antiguo de la ventana cumple 60 minutos).
+    """
+    from datetime import datetime, timedelta
+    from sqlalchemy import func, and_, select, asc
+    
+    limite = 20
+    ahora = datetime.utcnow()
+    hora_hace_60_min = ahora - timedelta(hours=1)
+    
+    resultado = await db.execute(
+        select(func.count())
+        .select_from(modelos.DocumentoProcesado)
+        .where(and_(
+            modelos.DocumentoProcesado.usuario_id == usuario_actual.id,
+            modelos.DocumentoProcesado.fecha_analisis >= hora_hace_60_min
+        ))
+    )
+    usados = resultado.scalar() or 0
 
+    # Obtener el más antiguo en la ventana para calcular cuándo se libera el primer slot
+    doc_mas_antiguo = await db.execute(
+        select(modelos.DocumentoProcesado.fecha_analisis)
+        .where(and_(
+            modelos.DocumentoProcesado.usuario_id == usuario_actual.id,
+            modelos.DocumentoProcesado.fecha_analisis >= hora_hace_60_min
+        ))
+        .order_by(asc(modelos.DocumentoProcesado.fecha_analisis))
+        .limit(1)
+    )
+    fecha_mas_antigua = doc_mas_antiguo.scalar()
+    proxima_recarga = None
+    if fecha_mas_antigua:
+        proxima_recarga = (fecha_mas_antigua + timedelta(hours=1)).isoformat() + "Z"
 
+    return {
+        "usados": usados,
+        "limite": limite,
+        "proxima_recarga": proxima_recarga
+    }
 
 @router.get("/historial", response_model=List[esquemas.DocumentoProcesadoResponse])
 async def obtener_historial_escaneos(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Obtiene el historial de documentos escaneados por el usuario."""
+    """Todos los documentos que ha escaneado el agente, del mas reciente al mas antiguo."""
     resultado = await db.execute(
         select(modelos.DocumentoProcesado)
         .options(selectinload(modelos.DocumentoProcesado.partidas))
@@ -42,7 +88,7 @@ async def obtener_documento(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Obtiene un documento por su ID con control de acceso."""
+    """Devuelve un documento por su ID. Verifica que el usuario tenga acceso a el."""
     documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
     return documento
 
@@ -54,13 +100,15 @@ async def actualizar_documento(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Actualiza datos y partidas de un documento existente."""
+    """Actualiza los datos de un documento y reemplaza sus partidas.
+    Si el documento esta bloqueado, no se puede modificar.
+    """
     documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
 
     if documento.bloqueado:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="El documento está bloqueado y no se puede modificar.",
+            detail="El documento esta bloqueado y no se puede modificar.",
         )
 
     if payload.proveedor is not None:
@@ -79,9 +127,6 @@ async def actualizar_documento(
         documento.otros = payload.otros
     if payload.cliente_id is not None:
         documento.cliente_id = payload.cliente_id
-    if payload.dua_generado is not None:
-        documento.dua_generado = payload.dua_generado
-
     from datetime import datetime
     now = datetime.utcnow()
 
@@ -104,7 +149,37 @@ async def actualizar_documento(
             )
             db.add(partida)
 
-    await registrar_auditoria(db, usuario_actual.id, "Actualización de Documento", f"Documento '{documento.nombre_archivo}' (ID: {documento.id}) actualizado.")
+    # Guarda los campos extra de la factura si vienen en el payload
+    if payload.fecha_emision is not None:
+        documento.fecha_emision = payload.fecha_emision
+    if payload.moneda is not None:
+        documento.moneda = payload.moneda
+    if payload.monto_subtotal is not None:
+        documento.monto_subtotal = payload.monto_subtotal
+    if payload.remitente_dir is not None:
+        documento.remitente_dir = payload.remitente_dir
+    if payload.remitente_doc is not None:
+        documento.remitente_doc = payload.remitente_doc
+    if payload.destinatario_dir is not None:
+        documento.destinatario_dir = payload.destinatario_dir
+    if payload.transporte_pais is not None:
+        documento.transporte_pais = payload.transporte_pais
+    if payload.transporte_metodo is not None:
+        documento.transporte_metodo = payload.transporte_metodo
+    if payload.peso_bruto is not None:
+        documento.peso_bruto = payload.peso_bruto
+    if payload.peso_neto is not None:
+        documento.peso_neto = payload.peso_neto
+    if payload.receptor_tax is not None:
+        documento.receptor_tax = payload.receptor_tax
+    if payload.numero_factura is not None:
+        documento.numero_factura = payload.numero_factura
+    if payload.incoterm is not None:
+        documento.incoterm = payload.incoterm
+    if payload.pais_origen is not None:
+        documento.pais_origen = payload.pais_origen
+
+    await registrar_auditoria(db, usuario_actual.id, "Actualizacion de Documento", f"Documento '{documento.nombre_archivo}' (ID: {documento.id}) actualizado.")
     await db.commit()
     await db.refresh(documento)
     return documento
@@ -116,13 +191,13 @@ async def servir_archivo_documento(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Sirve el archivo PDF original de un documento."""
+    """Descarga el PDF original que se subio para este documento."""
     documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
     if not documento.ruta_archivo:
         raise HTTPException(status_code=404, detail="Archivo no encontrado para este documento.")
     ruta_completa = os.path.join(UPLOAD_DIR, documento.ruta_archivo)
     if not os.path.exists(ruta_completa):
-        raise HTTPException(status_code=404, detail="El archivo físico ya no está disponible en el servidor.")
+        raise HTTPException(status_code=404, detail="El archivo fisico ya no esta disponible en el servidor.")
     return FileResponse(
         ruta_completa,
         media_type="application/pdf",
@@ -137,7 +212,7 @@ async def aprobar_documento(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Aprueba un documento o lo envía a revisión administrativa."""
+    """Aprueba un documento directamente, o si es de riesgo alto, lo manda a revision del admin."""
     documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
     rol = await obtener_rol_usuario(usuario_actual, db)
     es_admin = rol == "Administrador"
@@ -145,17 +220,17 @@ async def aprobar_documento(
     if documento.bloqueado:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="El documento está bloqueado y no se puede aprobar.",
+            detail="El documento esta bloqueado y no se puede aprobar.",
         )
 
     if payload.nuevo_total is not None:
         documento.total_cif = payload.nuevo_total
 
     if payload.solicitar_revision and not es_admin:
-        documento.estado = "Pendiente Aprobación Admin"
-        mensaje = "Operación enviada a revisión superior (Riesgo Alto)."
+        documento.estado = "Pendiente Aprobacion Admin"
+        mensaje = "Operacion enviada a revision superior (Riesgo Alto)."
 
-        await registrar_auditoria(db, usuario_actual.id, "Solicitud de Revisión", f"Documento '{documento.nombre_archivo}' (ID: {documento.id}) enviado a revisión superior.")
+        await registrar_auditoria(db, usuario_actual.id, "Solicitud de Revision", f"Documento '{documento.nombre_archivo}' (ID: {documento.id}) enviado a revision superior.")
 
         admins = await db.execute(
             select(modelos.Usuario)
@@ -164,8 +239,8 @@ async def aprobar_documento(
         )
         for admin in admins.scalars().all():
             notif = modelos.Notificacion(
-                titulo="Solicitud de Revisión",
-                mensaje=f"{usuario_actual.nombre} solicita revisión del documento '{documento.nombre_archivo}' (Riesgo Alto).",
+                titulo="Solicitud de Revision",
+                mensaje=f"{usuario_actual.nombre} solicita revision del documento '{documento.nombre_archivo}' (Riesgo Alto).",
                 tipo="alerta",
                 documento_id=documento.id,
                 usuario_destino_id=admin.id,
@@ -174,9 +249,9 @@ async def aprobar_documento(
             db.add(notif)
     else:
         documento.estado = "Aprobado"
-        mensaje = "Documento aprobado y sincronizado con éxito."
+        mensaje = "Documento aprobado y sincronizado con exito."
 
-        await registrar_auditoria(db, usuario_actual.id, "Aprobación de Documento", f"Documento '{documento.nombre_archivo}' (ID: {documento.id}) aprobado. Total CIF: {documento.total_cif}")
+        await registrar_auditoria(db, usuario_actual.id, "Aprobacion de Documento", f"Documento '{documento.nombre_archivo}' (ID: {documento.id}) aprobado. Total CIF: {documento.total_cif}")
 
         if documento.usuario_id and documento.usuario_id != usuario_actual.id:
             notif = modelos.Notificacion(
@@ -200,7 +275,7 @@ async def prevalidar_y_aprobar_documento(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Prevalida, aprueba y bloquea un documento definitivamente."""
+    """Aprueba y bloquea el documento definitivamente. Una vez bloqueado, no se puede editar ni eliminar."""
     if not payload.confirmar:
         raise HTTPException(status_code=400, detail="Debes confirmar el bloqueo del documento.")
 
@@ -209,7 +284,7 @@ async def prevalidar_y_aprobar_documento(
     if documento.bloqueado:
         raise HTTPException(
             status_code=409,
-            detail=f"El documento ya está bloqueado en estado '{documento.estado}'. "
+            detail=f"El documento ya esta bloqueado en estado '{documento.estado}'. "
                    "No se puede modificar.",
         )
 
@@ -221,7 +296,7 @@ async def prevalidar_y_aprobar_documento(
     documento.fecha_bloqueo = datetime.utcnow()
     documento.bloqueado_por_id = usuario_actual.id
 
-    await registrar_auditoria(db, usuario_actual.id, "Prevalidación y Bloqueo", (
+    await registrar_auditoria(db, usuario_actual.id, "Prevalidacion y Bloqueo", (
             f"Documento '{documento.nombre_archivo}' (ID: {documento.id}) "
             f"cambiado a estado 'Aprobado' y bloqueado contra modificaciones."
         ))
@@ -231,7 +306,7 @@ async def prevalidar_y_aprobar_documento(
             titulo="Documento Prevalidado y Bloqueado",
             mensaje=(
                 f"El documento '{documento.nombre_archivo}' ha sido aprobado y "
-                f"bloqueado por {usuario_actual.nombre}. Ya está listo para exportación."
+                f"bloqueado por {usuario_actual.nombre}. Ya esta listo para exportacion."
             ),
             tipo="aprobacion",
             documento_id=documento.id,
@@ -244,62 +319,9 @@ async def prevalidar_y_aprobar_documento(
     await db.refresh(documento)
 
     return {
-        "mensaje": "Documento prevalidado, aprobado y bloqueado con éxito.",
+        "mensaje": "Documento prevalidado, aprobado y bloqueado con exito.",
         "estado": documento.estado,
         "bloqueado": documento.bloqueado,
-    }
-
-
-AVANZAR_ESTADOS_VALIDOS = {
-    "En Revision": ["Presentado"],
-    "Presentado": ["En Aforo Documental"],
-    "En Aforo Documental": ["En Aforo Fisico", "Liquidado"],
-    "En Aforo Fisico": ["Liquidado"],
-    "Liquidado": ["Liberado"],
-    "Liberado": [],
-}
-
-
-@router.put("/{documento_id:int}/avanzar-estado-aduanero")
-async def avanzar_estado_aduanero(
-    documento_id: int,
-    payload: esquemas.AvanzarEstadoAduaneroRequest,
-    db: AsyncSession = Depends(get_db),
-    usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
-):
-    """Avanza el estado aduanero de un documento."""
-    documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
-
-    estado_actual = documento.estado_aduanero or "En Revision"
-    nuevo_estado = payload.estado
-
-    if nuevo_estado not in AVANZAR_ESTADOS_VALIDOS.get(estado_actual, []):
-        raise HTTPException(
-            status_code=400,
-            detail=f"No se puede pasar de '{estado_actual}' a '{nuevo_estado}'. "
-                   f"Transiciones permitidas: {AVANZAR_ESTADOS_VALIDOS.get(estado_actual, [])}",
-        )
-
-    documento.estado_aduanero = nuevo_estado
-
-    now = datetime.utcnow()
-    if nuevo_estado == "Presentado":
-        documento.fecha_presentacion = now
-    elif nuevo_estado == "En Aforo Documental":
-        documento.fecha_aforo_documental = now
-    elif nuevo_estado == "En Aforo Fisico":
-        documento.fecha_aforo_fisico = now
-    elif nuevo_estado == "Liquidado":
-        documento.fecha_liquidacion = now
-    elif nuevo_estado == "Liberado":
-        documento.fecha_liberacion = now
-
-    await registrar_auditoria(db, usuario_actual.id, "Avance Estado Aduanero", f"Documento '{documento.nombre_archivo}' (ID: {documento.id}) cambió de estado aduanero '{estado_actual}' → '{nuevo_estado}'.")
-    await db.commit()
-
-    return {
-        "mensaje": f"Estado aduanero actualizado a '{nuevo_estado}'.",
-        "estado_aduanero": documento.estado_aduanero,
     }
 
 
@@ -310,7 +332,7 @@ async def asignar_despachante(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Asigna un despachante a un documento."""
+    """Asigna un agente de aduana (despachante) a un documento."""
     documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
     despachante_id = payload.get("despachante_id")
     if despachante_id is not None:
@@ -328,7 +350,7 @@ async def exportar_xml_intercambio(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Exporta los datos del documento como XML de intercambio."""
+    """Genera un archivo XML con los datos del documento, observaciones y V°B° para intercambiar con otros sistemas."""
     documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
 
     observaciones = await db.execute(
@@ -381,7 +403,7 @@ async def exportar_xml_intercambio(
         doc_dict, detalles, vbb, usuario_actual.nombre
     )
 
-    await registrar_auditoria(db, usuario_actual.id, "Exportación de Archivo de Intercambio (XML)", (
+    await registrar_auditoria(db, usuario_actual.id, "Exportacion de Archivo de Intercambio (XML)", (
             f"XML de intercambio generado para '{documento.nombre_archivo}' "
             f"(ID: {documento.id})."
         ))
@@ -402,7 +424,7 @@ async def exportar_json_intercambio(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Exporta los datos del documento como JSON de intercambio."""
+    """Genera un JSON con los datos del documento y sus V°B° para exportar a otros sistemas."""
     documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
 
     vistos_buenos = await db.execute(
@@ -435,7 +457,7 @@ async def exportar_json_intercambio(
 
     json_content = generar_json_intercambio(doc_dict, [], vbb, usuario_actual.nombre)
 
-    await registrar_auditoria(db, usuario_actual.id, "Exportación de Archivo de Intercambio (JSON)", (
+    await registrar_auditoria(db, usuario_actual.id, "Exportacion de Archivo de Intercambio (JSON)", (
             f"JSON de intercambio generado para '{documento.nombre_archivo}' "
             f"(ID: {documento.id})."
         ))
@@ -450,7 +472,9 @@ async def eliminar_documento(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Elimina un documento y su archivo físico del servidor."""
+    """Elimina un documento y su archivo PDF del servidor.
+    Si esta bloqueado, solo el admin puede eliminarlo.
+    """
     documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
     rol = await obtener_rol_usuario(usuario_actual, db)
     es_admin = rol == "Administrador"
@@ -458,7 +482,7 @@ async def eliminar_documento(
     if not es_admin and documento.bloqueado:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="El documento está bloqueado (Prevalidado / Aprobado) y no puede eliminarse.",
+            detail="El documento esta bloqueado (Prevalidado / Aprobado) y no puede eliminarse.",
         )
 
     if documento.ruta_archivo:
@@ -466,7 +490,7 @@ async def eliminar_documento(
         if os.path.exists(ruta_completa):
             os.remove(ruta_completa)
 
-    await registrar_auditoria(db, usuario_actual.id, "Eliminación de Documento", f"Documento '{documento.nombre_archivo}' (ID: {documento.id}) eliminado por {usuario_actual.nombre}.")
+    await registrar_auditoria(db, usuario_actual.id, "Eliminacion de Documento", f"Documento '{documento.nombre_archivo}' (ID: {documento.id}) eliminado por {usuario_actual.nombre}.")
     await db.delete(documento)
     await db.commit()
     return None
@@ -478,7 +502,7 @@ async def obtener_observaciones(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Obtiene las observaciones de un documento."""
+    """Devuelve todas las observaciones de un documento, con el nombre del usuario que las escribio."""
     await obtener_documento_seguro(documento_id, usuario_actual, db)
     resultado = await db.execute(
         select(
@@ -514,13 +538,13 @@ async def crear_observacion(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Agrega una observación a un documento."""
+    """Agrega una observacion a un documento. No permite agregar si el documento esta bloqueado."""
     documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
 
     if documento.bloqueado:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="El documento está bloqueado y no se pueden agregar observaciones.",
+            detail="El documento esta bloqueado y no se pueden agregar observaciones.",
         )
 
     nueva_obs = modelos.Observacion(
@@ -531,11 +555,11 @@ async def crear_observacion(
     )
     db.add(nueva_obs)
 
-    await registrar_auditoria(db, usuario_actual.id, "Observación Agregada", f"Observación añadida al documento '{documento.nombre_archivo}' (ID: {documento.id}): {obs.contenido[:100]}")
+    await registrar_auditoria(db, usuario_actual.id, "Observacion Agregada", f"Observacion anadida al documento '{documento.nombre_archivo}' (ID: {documento.id}): {obs.contenido[:100]}")
     await db.commit()
     await db.refresh(nueva_obs)
 
-    return {"id": nueva_obs.id, "mensaje": "Observación registrada correctamente."}
+    return {"id": nueva_obs.id, "mensaje": "Observacion registrada correctamente."}
 
 
 @router.get("/notificaciones/mis")
@@ -543,7 +567,7 @@ async def obtener_mis_notificaciones(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Obtiene las notificaciones del usuario autenticado."""
+    """Las notificaciones del usuario logueado (max 30, mas recientes primero)."""
     resultado = await db.execute(
         select(modelos.Notificacion)
         .filter(modelos.Notificacion.usuario_destino_id == usuario_actual.id)
@@ -572,7 +596,7 @@ async def marcar_notificacion_leida(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Marca una notificación como leída."""
+    """Marca una notificacion como leida."""
     resultado = await db.execute(
         select(modelos.Notificacion)
         .filter(modelos.Notificacion.id == notificacion_id)
@@ -580,11 +604,11 @@ async def marcar_notificacion_leida(
     )
     notif = resultado.scalars().first()
     if not notif:
-        raise HTTPException(status_code=404, detail="Notificación no encontrada.")
+        raise HTTPException(status_code=404, detail="Notificacion no encontrada.")
 
     notif.leida = True
     await db.commit()
-    return {"mensaje": "Notificación marcada como leída."}
+    return {"mensaje": "Notificacion marcada como leida."}
 
 
 @router.patch("/notificaciones/leer-todas")
@@ -592,7 +616,7 @@ async def marcar_todas_leidas(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Marca todas las notificaciones como leídas."""
+    """Marca todas las notificaciones del usuario como leidas de una sola vez."""
     await db.execute(
         update(modelos.Notificacion)
         .where(modelos.Notificacion.usuario_destino_id == usuario_actual.id)
@@ -600,7 +624,7 @@ async def marcar_todas_leidas(
         .values(leida=True)
     )
     await db.commit()
-    return {"mensaje": "Todas las notificaciones marcadas como leídas."}
+    return {"mensaje": "Todas las notificaciones marcadas como leidas."}
 
 
 @router.post("/{documento_id:int}/solicitar-aclaracion")
@@ -610,21 +634,21 @@ async def solicitar_aclaracion_cliente(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Solicita una aclaración al cliente sobre un documento."""
+    """Pide una aclaracion al cliente sobre un documento. Deja el documento en estado 'En Espera'."""
     mensaje = payload.get("mensaje", "").strip()
     if not mensaje:
-        raise HTTPException(status_code=400, detail="El mensaje de aclaración es obligatorio.")
+        raise HTTPException(status_code=400, detail="El mensaje de aclaracion es obligatorio.")
 
     documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
 
     if documento.bloqueado:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="El documento está bloqueado y no se pueden solicitar aclaraciones.",
+            detail="El documento esta bloqueado y no se pueden solicitar aclaraciones.",
         )
 
     observacion = modelos.Observacion(
-        contenido=f"[ACLARACIÓN AL CLIENTE] {mensaje}",
+        contenido=f"[ACLARACION AL CLIENTE] {mensaje}",
         tipo="correccion",
         documento_id=documento_id,
         usuario_id=usuario_actual.id,
@@ -633,13 +657,60 @@ async def solicitar_aclaracion_cliente(
 
     documento.estado = "En Espera"
 
-    await registrar_auditoria(db, usuario_actual.id, "Solicitud de Aclaración", f"Solicitud de aclaración enviada para '{documento.nombre_archivo}' (ID: {documento.id}): {mensaje[:200]}")
+    await registrar_auditoria(db, usuario_actual.id, "Solicitud de Aclaracion", f"Solicitud de aclaracion enviada para '{documento.nombre_archivo}' (ID: {documento.id}): {mensaje[:200]}")
 
     await db.commit()
 
+    # Notificamos al agente que creo el documento (si no es el mismo que envia)
+    if documento.usuario_id and documento.usuario_id != usuario_actual.id:
+        notif_agente = modelos.Notificacion(
+            titulo="Aclaracion Solicitada",
+            mensaje=f"Se solicito aclaracion para '{documento.nombre_archivo}'. El documento quedo en estado 'En Espera'.",
+            tipo="info",
+            documento_id=documento.id,
+            usuario_destino_id=documento.usuario_id,
+            usuario_origen_id=usuario_actual.id,
+        )
+        db.add(notif_agente)
+
+    # Si quien envia NO es administrador, notificamos a todos los admins
+    rol = await obtener_rol_usuario(usuario_actual, db)
+    if rol != "Administrador":
+        admins = await db.execute(
+            select(modelos.Usuario)
+            .join(modelos.Rol)
+            .filter(modelos.Rol.nombre == "Administrador")
+        )
+        for admin in admins.scalars().all():
+            notif_admin = modelos.Notificacion(
+                titulo="Aclaracion Solicitada",
+                mensaje=f"{usuario_actual.nombre} solicito aclaracion para '{documento.nombre_archivo}'. Quedo en 'En Espera'.",
+                tipo="info",
+                documento_id=documento.id,
+                usuario_destino_id=admin.id,
+                usuario_origen_id=usuario_actual.id,
+            )
+            db.add(notif_admin)
+
+    await db.commit()
+
+    # Intentamos enviar un correo al importador
+    # Primero usamos el email que vino del frontend (el agente lo confirmo),
+    # si no hay, usamos el email del cliente registrado en el sistema.
+    email_enviado = False
+    email_destino = payload.get("email") or (documento.cliente_rel.email if documento.cliente_rel else None)
+    if email_destino:
+        email_enviado = enviar_correo_aclaracion(
+            destinatario=email_destino,
+            nombre_archivo=documento.nombre_archivo,
+            mensaje=mensaje,
+        )
+
     return {
-        "mensaje": "Solicitud de aclaración enviada. El documento queda en estado 'En Espera'.",
+        "mensaje": "Solicitud de aclaracion enviada. El documento queda en estado 'En Espera'.",
         "estado": "En Espera",
+        "email_enviado": email_enviado,
+        "email_destino": email_destino,
     }
 
 
@@ -648,53 +719,14 @@ async def obtener_alertas(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Genera alertas de documentos estancados, V°B° y garantías."""
+    """Genera alertas de V°B° pendientes desde hace mas de 7 dias."""
     from datetime import datetime, timedelta
     from sqlalchemy import func, and_
 
     ahora = datetime.utcnow()
     alertas = []
 
-    docs = await db.execute(
-        select(modelos.DocumentoProcesado).filter(
-            modelos.DocumentoProcesado.usuario_id == usuario_actual.id
-        )
-    )
-    documentos = docs.scalars().all()
-
-    ESTADOS_STANCADOS = {
-        "Presentado": (5, "Documento presentado sin avance de aforo"),
-        "En Aforo Documental": (3, "Aforo documental sin finalizar"),
-        "En Aforo Fisico": (3, "Aforo físico sin finalizar"),
-        "Pendiente Aprobación Admin": (2, "Pendiente de aprobación del administrador"),
-    }
-
-    for d in documentos:
-        estado = d.estado_aduanero
-        if estado in ESTADOS_STANCADOS:
-            dias_max, mensaje = ESTADOS_STANCADOS[estado]
-            fecha_ref = None
-            if estado == "Presentado":
-                fecha_ref = d.fecha_presentacion
-            elif estado == "En Aforo Documental":
-                fecha_ref = d.fecha_aforo_documental
-            elif estado == "En Aforo Fisico":
-                fecha_ref = d.fecha_aforo_fisico
-            elif estado == "Pendiente Aprobación Admin":
-                fecha_ref = d.fecha_analisis
-
-            if fecha_ref and (ahora - fecha_ref).days >= dias_max:
-                alertas.append({
-                    "tipo": "estancado",
-                    "severidad": "alta" if (ahora - fecha_ref).days >= dias_max * 2 else "media",
-                    "documento_id": d.id,
-                    "nombre_archivo": d.nombre_archivo,
-                    "estado_actual": estado,
-                    "dias_detenido": (ahora - fecha_ref).days,
-                    "mensaje": f"{mensaje} ({d.nombre_archivo})",
-                })
-
-    # V°B° pendientes antiguos o sin fecha de gestión
+    # V°B° pendientes sin gestion por mas de 7 dias
     vbs = await db.execute(
         select(modelos.VistoBueno)
         .join(modelos.DocumentoProcesado)
@@ -712,40 +744,7 @@ async def obtener_alertas(
                 "nombre_archivo": vb.documento_rel.nombre_archivo if vb.documento_rel else "",
                 "estado_actual": vb.entidad,
                 "dias_detenido": (ahora - vb.fecha_gestion).days,
-                "mensaje": f"V°B° de {vb.entidad} pendiente desde hace {(ahora - vb.fecha_gestion).days} días",
-            })
-
-    # Garantías próximas a vencer
-    gts = await db.execute(
-        select(modelos.Garantia)
-        .join(modelos.DocumentoProcesado)
-        .filter(
-            modelos.DocumentoProcesado.usuario_id == usuario_actual.id,
-            modelos.Garantia.estado == "Vigente",
-            modelos.Garantia.fecha_vencimiento.isnot(None),
-        )
-    )
-    for g in gts.scalars().all():
-        dias_restantes = (g.fecha_vencimiento - ahora).days
-        if 0 <= dias_restantes <= 15:
-            alertas.append({
-                "tipo": "garantia_proxima_vencer",
-                "severidad": "alta" if dias_restantes <= 3 else "media",
-                "documento_id": g.documento_id,
-                "nombre_archivo": g.documento_rel.nombre_archivo if g.documento_rel else "",
-                "estado_actual": g.tipo,
-                "dias_detenido": dias_restantes,
-                "mensaje": f"{g.tipo} #{g.numero} vence en {dias_restantes} día(s)",
-            })
-        elif dias_restantes < 0:
-            alertas.append({
-                "tipo": "garantia_vencida",
-                "severidad": "alta",
-                "documento_id": g.documento_id,
-                "nombre_archivo": g.documento_rel.nombre_archivo if g.documento_rel else "",
-                "estado_actual": g.tipo,
-                "dias_detenido": abs(dias_restantes),
-                "mensaje": f"{g.tipo} #{g.numero} vencida hace {abs(dias_restantes)} día(s)",
+                "mensaje": f"V°B° de {vb.entidad} pendiente desde hace {(ahora - vb.fecha_gestion).days} dias",
             })
 
     alertas.sort(key=lambda a: {"alta": 0, "media": 1, "baja": 2}.get(a["severidad"], 3))
@@ -753,67 +752,19 @@ async def obtener_alertas(
     return alertas[:20]
 
 
-@router.get("/monitoreo")
-async def obtener_monitoreo(
-    db: AsyncSession = Depends(get_db),
-    usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
-):
-    """Devuelve documentos agrupados por estado aduanero."""
-    from sqlalchemy import func
-
-    ORDEN = ["En Revision", "Presentado", "En Aforo Documental", "En Aforo Fisico", "Liquidado", "Liberado"]
-    COLORES = {
-        "En Revision": "var(--yellow)", "Presentado": "var(--primary)",
-        "En Aforo Documental": "var(--blue)", "En Aforo Fisico": "var(--purple)",
-        "Liquidado": "var(--green)", "Liberado": "var(--accent)",
-    }
-
-    result = await db.execute(
-        select(modelos.DocumentoProcesado).filter(
-            modelos.DocumentoProcesado.usuario_id == usuario_actual.id
-        ).order_by(modelos.DocumentoProcesado.fecha_analisis.desc())
-    )
-    docs = result.scalars().all()
-
-    agrupados = {}
-    for est in ORDEN:
-        agrupados[est] = []
-
-    for d in docs:
-        est = d.estado_aduanero or "En Revision"
-        if est in agrupados:
-            agrupados[est].append({
-                "id": d.id,
-                "nombre_archivo": d.nombre_archivo,
-                "proveedor": d.proveedor,
-                "total_cif": d.total_cif,
-                "riesgo": d.riesgo,
-                "fecha_analisis": d.fecha_analisis.isoformat() if d.fecha_analisis else None,
-            })
-
-    return {
-        "columnas": [
-            {"estado": est, "color": COLORES.get(est, "var(--text-muted)"), "documentos": agrupados[est]}
-            for est in ORDEN
-        ]
-    }
-
-
 @router.get("/metrics")
 async def obtener_metricas_agente(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Métricas de desempeño del agente (totales, aprobados, riesgo)."""
+    """Indicadores del agente: total documentos, pendientes, aprobados del mes, tasa de riesgo alto."""
     base = select(modelos.DocumentoProcesado).filter(
         modelos.DocumentoProcesado.usuario_id == usuario_actual.id
     )
 
-    # Total de documentos del agente
     total = await db.execute(select(func.count()).select_from(base.subquery()))
     total_docs = total.scalar() or 0
 
-    # Pendientes (En Revision)
     pend_q = await db.execute(
         select(func.count())
         .select_from(modelos.DocumentoProcesado)
@@ -825,7 +776,6 @@ async def obtener_metricas_agente(
     )
     pendientes = pend_q.scalar() or 0
 
-    # Aprobados este mes
     inicio_mes = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     aprob_q = await db.execute(
         select(func.count())
@@ -838,7 +788,6 @@ async def obtener_metricas_agente(
     )
     aprobados_mes = aprob_q.scalar() or 0
 
-    # Tasa de riesgo alto
     alto_q = await db.execute(
         select(func.count())
         .select_from(modelos.DocumentoProcesado)
@@ -850,13 +799,12 @@ async def obtener_metricas_agente(
     total_alto = alto_q.scalar() or 0
     tasa_alto = round((total_alto / total_docs * 100), 1) if total_docs > 0 else 0
 
-    # Pendientes de aprobacion admin
     pend_admin_q = await db.execute(
         select(func.count())
         .select_from(modelos.DocumentoProcesado)
         .where(and_(
             modelos.DocumentoProcesado.usuario_id == usuario_actual.id,
-            modelos.DocumentoProcesado.estado == "Pendiente Aprobación Admin",
+            modelos.DocumentoProcesado.estado == "Pendiente Aprobacion Admin",
         ))
     )
     pend_admin = pend_admin_q.scalar() or 0
@@ -875,10 +823,10 @@ async def obtener_pendientes_agente(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Documentos pendientes de clasificar, despachante, V°B° o DUA."""
+    """Tareas pendientes: documentos sin clasificar, sin despachante, o con V°B° pendientes."""
     uid = usuario_actual.id
 
-    # 1. Docs con partidas sin clasificar (partida_corregida vacia)
+    # 1. Documentos con partidas sin clasificar (partida_corregida vacia)
     sin_clasificar = await db.execute(
         select(modelos.DocumentoProcesado.id, modelos.DocumentoProcesado.nombre_archivo)
         .join(modelos.Partida, modelos.Partida.documento_id == modelos.DocumentoProcesado.id)
@@ -894,7 +842,7 @@ async def obtener_pendientes_agente(
         for r in sin_clasificar.all()
     ]
 
-    # 2. Docs sin despachante asignado
+    # 2. Documentos sin despachante asignado
     sin_despachante = await db.execute(
         select(modelos.DocumentoProcesado.id, modelos.DocumentoProcesado.nombre_archivo)
         .where(and_(
@@ -909,7 +857,7 @@ async def obtener_pendientes_agente(
         for r in sin_despachante.all()
     ]
 
-    # 3. Docs con V°B° pendientes
+    # 3. Documentos con V°B° pendientes
     vbb_pendientes = await db.execute(
         select(modelos.DocumentoProcesado.id, modelos.DocumentoProcesado.nombre_archivo)
         .join(modelos.VistoBueno, modelos.VistoBueno.documento_id == modelos.DocumentoProcesado.id)
@@ -924,25 +872,10 @@ async def obtener_pendientes_agente(
         for r in vbb_pendientes.all()
     ]
 
-    # 4. Docs sin DUA generado
-    docs_sin_dua_q = await db.execute(
-        select(modelos.DocumentoProcesado.id, modelos.DocumentoProcesado.nombre_archivo)
-        .where(and_(
-            modelos.DocumentoProcesado.usuario_id == uid,
-            modelos.DocumentoProcesado.bloqueado == False,
-            modelos.DocumentoProcesado.dua_generado == False,
-        ))
-    )
-    docs_sin_dua = [
-        {"id": r.id, "nombre_archivo": r.nombre_archivo}
-        for r in docs_sin_dua_q.all()
-    ]
-
     return {
         "sin_clasificar": docs_sin_clasificar,
         "sin_despachante": docs_sin_despachante,
         "vbb_pendientes": docs_vbb_pendientes,
-        "sin_dua": docs_sin_dua,
     }
 
 
@@ -951,70 +884,11 @@ async def obtener_vencimientos(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Garantías próximas a vencer y documentos estancados."""
+    """Alertas de vencimientos: pendientes de admin (>3 dias)."""
     uid = usuario_actual.id
     hoy = datetime.utcnow()
 
-    # 1. Garantias por vencer (proximos 30 dias) o vencidas
-    garantias = await db.execute(
-        select(
-            modelos.Garantia.id,
-            modelos.Garantia.tipo,
-            modelos.Garantia.numero,
-            modelos.Garantia.fecha_vencimiento,
-            modelos.Garantia.estado,
-            modelos.Garantia.documento_id,
-            modelos.DocumentoProcesado.nombre_archivo,
-        )
-        .join(modelos.DocumentoProcesado, modelos.DocumentoProcesado.id == modelos.Garantia.documento_id)
-        .where(and_(
-            modelos.DocumentoProcesado.usuario_id == uid,
-            modelos.Garantia.estado == "Vigente",
-            modelos.Garantia.fecha_vencimiento != None,
-        ))
-    )
-    garantias_proximas = []
-    for g in garantias.all():
-        dias_restantes = (g.fecha_vencimiento - hoy).days if g.fecha_vencimiento else None
-        if dias_restantes is not None and dias_restantes <= 30:
-            garantias_proximas.append({
-                "id": g.id,
-                "tipo": g.tipo,
-                "numero": g.numero,
-                "fecha_vencimiento": g.fecha_vencimiento.isoformat(),
-                "dias_restantes": dias_restantes,
-                "documento_id": g.documento_id,
-                "nombre_archivo": g.nombre_archivo,
-            })
-
-    # 2. Docs estancados en estados administrativos (Presentado, Aforo Documental, Aforo Fisico > 5 dias)
-    estancados = await db.execute(
-        select(
-            modelos.DocumentoProcesado.id,
-            modelos.DocumentoProcesado.nombre_archivo,
-            modelos.DocumentoProcesado.estado_aduanero,
-            modelos.DocumentoProcesado.fecha_analisis,
-        )
-        .where(and_(
-            modelos.DocumentoProcesado.usuario_id == uid,
-            modelos.DocumentoProcesado.estado_aduanero.in_([
-                "Presentado", "En Aforo Documental", "En Aforo Fisico"
-            ]),
-            modelos.DocumentoProcesado.fecha_analisis != None,
-        ))
-    )
-    docs_estancados = []
-    for d in estancados.all():
-        dias_estancado = (hoy - d.fecha_analisis).days if d.fecha_analisis else 0
-        if dias_estancado >= 5:
-            docs_estancados.append({
-                "id": d.id,
-                "nombre_archivo": d.nombre_archivo,
-                "estado_aduanero": d.estado_aduanero,
-                "dias_estancado": dias_estancado,
-            })
-
-    # 3. Docs pendientes de aprobacion admin por > 3 dias
+    # Documentos pendientes de aprobacion admin por mas de 3 dias
     pend_admin = await db.execute(
         select(
             modelos.DocumentoProcesado.id,
@@ -1023,7 +897,7 @@ async def obtener_vencimientos(
         )
         .where(and_(
             modelos.DocumentoProcesado.usuario_id == uid,
-            modelos.DocumentoProcesado.estado == "Pendiente Aprobación Admin",
+            modelos.DocumentoProcesado.estado == "Pendiente Aprobacion Admin",
         ))
     )
     docs_pend_admin = []
@@ -1036,9 +910,203 @@ async def obtener_vencimientos(
         })
 
     return {
-        "garantias_proximas": garantias_proximas,
-        "docs_estancados": docs_estancados,
         "pendientes_admin": docs_pend_admin,
+    }
+
+
+@router.post("/{documento_id:int}/enviar-informe")
+async def enviar_informe_pdf(
+    documento_id: int,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
+):
+    """Genera un PDF con el informe del documento y lo envia por correo electronico.
+
+    Recibe el email del destinatario en el payload. Genera el PDF con todos los
+    datos del documento, items, V°B° y observaciones, y lo adjunta al correo.
+    """
+    email = (payload.get("email") or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="El email del destinatario es obligatorio.")
+
+    pais_destino = (payload.get("pais_destino") or "CL").upper()
+    aplica_tlc = bool(payload.get("aplica_tlc", False))
+    dta_tasa = float(payload.get("dta_tasa", 0.0))
+
+    documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
+
+    # Obtiene las partidas del documento
+    partidas_q = await db.execute(
+        select(modelos.Partida).filter(modelos.Partida.documento_id == documento_id)
+    )
+    partidas = [
+        {
+            "descripcion": p.descripcion,
+            "cantidad": p.cantidad,
+            "precio_unitario": p.precio_unitario,
+            "partida_sugerida": p.partida_sugerida,
+            "partida_corregida": p.partida_corregida,
+        }
+        for p in partidas_q.scalars().all()
+    ]
+
+    # Obtiene los V°B° del documento
+    vbb_q = await db.execute(
+        select(modelos.VistoBueno).filter(
+            modelos.VistoBueno.documento_id == documento_id
+        )
+    )
+    vistos_buenos = [
+        {
+            "entidad": vb.entidad,
+            "tipo_permiso": vb.tipo_permiso,
+            "estado": vb.estado,
+            "observaciones": vb.observaciones or "",
+        }
+        for vb in vbb_q.scalars().all()
+    ]
+
+    # Obtiene las observaciones del documento
+    obs_q = await db.execute(
+        select(
+            modelos.Observacion.contenido,
+            modelos.Observacion.tipo,
+            modelos.Observacion.fecha_creacion,
+            modelos.Usuario.nombre.label("usuario_nombre"),
+        )
+        .join(modelos.Usuario, modelos.Observacion.usuario_id == modelos.Usuario.id)
+        .filter(modelos.Observacion.documento_id == documento_id)
+        .order_by(desc(modelos.Observacion.fecha_creacion))
+    )
+    observaciones = [
+        {
+            "contenido": r.contenido,
+            "tipo": r.tipo,
+            "fecha_creacion": r.fecha_creacion.isoformat() if r.fecha_creacion else None,
+            "usuario_nombre": r.usuario_nombre,
+        }
+        for r in obs_q.mappings().all()
+    ]
+
+    # Arma el dict del documento con todos los campos para el PDF
+    historia_dict = {
+        "nombre_archivo": documento.nombre_archivo,
+        "numero_factura": documento.numero_factura,
+        "fecha_emision": documento.fecha_emision,
+        "moneda": documento.moneda,
+        "incoterm": documento.incoterm,
+        "pais_origen": documento.pais_origen,
+        "total_cif": documento.total_cif,
+        "monto_subtotal": documento.monto_subtotal,
+        "flete": documento.flete,
+        "seguro": documento.seguro,
+        "otros": documento.otros,
+        "proveedor": documento.proveedor,
+        "cliente": documento.cliente,
+        "remitente_dir": documento.remitente_dir,
+        "destinatario_dir": documento.destinatario_dir,
+        "transporte_pais": documento.transporte_pais,
+        "transporte_metodo": documento.transporte_metodo,
+        "peso_bruto": documento.peso_bruto,
+        "peso_neto": documento.peso_neto,
+        "receptor_tax": documento.receptor_tax,
+        "riesgo": documento.riesgo,
+        "estado": documento.estado,
+    }
+
+    doc_extra = {
+        "emisor_nombre": documento.proveedor,
+        "emisor_tax_id": documento.remitente_doc,
+        "remitente_dir": documento.remitente_dir,
+        "destinatario_dir": documento.destinatario_dir,
+        "transporte_pais": documento.transporte_pais,
+        "transporte_metodo": documento.transporte_metodo,
+    }
+
+    try:
+        pdf_bytes = generar_pdf_informe(
+            historia=historia_dict,
+            doc_extra=doc_extra,
+            partidas=partidas,
+            vistos_buenos=vistos_buenos,
+            observaciones=observaciones,
+            usuario_nombre=usuario_actual.nombre,
+            pais_destino=pais_destino,
+            aplica_tlc=aplica_tlc,
+            dta_tasa=dta_tasa,
+            prevalidacion=documento.prevalidacion_resultado,
+        )
+    except Exception as exc:
+        logger.error("Error generando PDF para documento %d: %s", documento_id, exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al generar el PDF: {str(exc)}",
+        )
+
+    asunto = f"Informe de Prevalidación - {documento.nombre_archivo}"
+    cuerpo = f"""\
+<html>
+<body style="font-family:sans-serif;padding:20px;">
+    <h2>Informe de Prevalidación Aduanera</h2>
+    <p><strong>Documento:</strong> {documento.nombre_archivo}</p>
+    <p><strong>Riesgo:</strong> {documento.riesgo or 'N/A'}</p>
+    <p><strong>Estado:</strong> {documento.estado or 'N/A'}</p>
+    <hr>
+    <p>Se adjunta el informe completo en formato PDF con los datos del documento,
+    valores, logística, items, V°B° y observaciones.</p>
+    <p style="color:#666;font-size:0.85em;">
+        Generado por {usuario_actual.nombre} a través de Advacheck.
+    </p>
+</body>
+</html>"""
+
+    nombre_pdf = f"informe_{documento.id}.pdf"
+    email_enviado = enviar_correo_con_adjunto(
+        destinatario=email,
+        asunto=asunto,
+        cuerpo_html=cuerpo,
+        adjunto_nombre=nombre_pdf,
+        adjunto_bytes=pdf_bytes,
+    )
+
+    if not email_enviado:
+        logger.warning("No se pudo enviar el correo con el informe a %s", email)
+
+    await registrar_auditoria(
+        db, usuario_actual.id, "Envio de Informe PDF",
+        f"Informe PDF del documento '{documento.nombre_archivo}' (ID: {documento.id}) enviado a {email}.",
+    )
+
+    # Notifica al usuario actual que el informe fue enviado
+    notif = modelos.Notificacion(
+        titulo="Informe Enviado",
+        mensaje=f"Informe PDF de '{documento.nombre_archivo}' enviado a {email}.",
+        tipo="info",
+        documento_id=documento.id,
+        usuario_destino_id=usuario_actual.id,
+        usuario_origen_id=usuario_actual.id,
+    )
+    db.add(notif)
+
+    # Si el documento pertenece a otro usuario, tambien lo notificamos
+    if documento.usuario_id and documento.usuario_id != usuario_actual.id:
+        notif_dueno = modelos.Notificacion(
+            titulo="Informe Enviado",
+            mensaje=f"Se envió el informe PDF de '{documento.nombre_archivo}' a {email} por {usuario_actual.nombre}.",
+            tipo="info",
+            documento_id=documento.id,
+            usuario_destino_id=documento.usuario_id,
+            usuario_origen_id=usuario_actual.id,
+        )
+        db.add(notif_dueno)
+
+    await db.commit()
+
+    return {
+        "mensaje": "Informe enviado correctamente." if email_enviado else "No se pudo enviar el correo.",
+        "email_enviado": email_enviado,
+        "email_destino": email,
     }
 
 
@@ -1051,7 +1119,9 @@ async def obtener_landed_cost(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Calcula el costo total nacionalizado (landed cost) de un documento."""
+    """Calcula el costo total nacionalizado (landed cost) de un documento.
+    Considera FOB, flete, seguro, otros, arancel ad-valorem, DTA (solo MX) e IVA.
+    """
     documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
 
     partidas = await db.execute(
@@ -1092,135 +1162,4 @@ async def obtener_landed_cost(
     }
 
 
-@router.get("/proveedores/perfiles")
-async def obtener_perfiles_proveedores(
-    db: AsyncSession = Depends(get_db),
-    usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
-):
-    """Perfiles de riesgo y estadísticas por proveedor."""
-    from sqlalchemy import func, case
 
-    resultado = await db.execute(
-        select(
-            modelos.DocumentoProcesado.proveedor,
-            func.count(modelos.DocumentoProcesado.id).label("total_operaciones"),
-            func.sum(case((modelos.DocumentoProcesado.riesgo == "alto", 1), else_=0)).label("riesgo_alto"),
-            func.sum(case((modelos.DocumentoProcesado.riesgo == "medio", 1), else_=0)).label("riesgo_medio"),
-            func.sum(case((modelos.DocumentoProcesado.riesgo == "bajo", 1), else_=0)).label("riesgo_bajo"),
-            func.avg(modelos.DocumentoProcesado.total_cif).label("promedio_cif"),
-            func.max(modelos.DocumentoProcesado.fecha_analisis).label("ultima_operacion"),
-        )
-        .filter(modelos.DocumentoProcesado.proveedor.isnot(None))
-        .filter(modelos.DocumentoProcesado.usuario_id == usuario_actual.id)
-        .group_by(modelos.DocumentoProcesado.proveedor)
-        .order_by(desc(func.count(modelos.DocumentoProcesado.id)))
-    )
-    filas = resultado.mappings().all()
-
-    perfiles = []
-    for f in filas:
-        total = f["total_operaciones"]
-        alto = f["riesgo_alto"] or 0
-        tasa_riesgo = round((alto / total * 100), 1) if total > 0 else 0
-
-        if tasa_riesgo >= 50:
-            nivel = "critico"
-        elif tasa_riesgo >= 25:
-            nivel = "elevado"
-        elif alto > 0:
-            nivel = "moderado"
-        else:
-            nivel = "confiable"
-
-        perfiles.append(
-            {
-                "proveedor": f["proveedor"],
-                "total_operaciones": total,
-                "riesgo_alto": alto,
-                "riesgo_medio": f["riesgo_medio"] or 0,
-                "riesgo_bajo": f["riesgo_bajo"] or 0,
-                "tasa_riesgo_porcentaje": tasa_riesgo,
-                "nivel_proveedor": nivel,
-                "promedio_cif": round(f["promedio_cif"] or 0, 2),
-                "ultima_operacion": f["ultima_operacion"].isoformat() if f["ultima_operacion"] else None,
-            }
-        )
-
-    return perfiles
-
-
-@router.post("/{documento_id:int}/generar-dua")
-async def generar_dua(
-    documento_id: int,
-    db: AsyncSession = Depends(get_db),
-    usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
-):
-    """Genera un DUA simulado con los datos del documento."""
-    from datetime import datetime
-
-    documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
-
-    partidas = await db.execute(
-        select(modelos.Partida).filter(modelos.Partida.documento_id == documento_id)
-    )
-    items = partidas.scalars().all()
-
-    despachante = None
-    if documento.despachante_id:
-        despachante = await db.get(modelos.Despachante, documento.despachante_id)
-
-    fob = sum(p.cantidad * p.precio_unitario for p in items if p.cantidad and p.precio_unitario)
-    flete = getattr(documento, "flete", None) or 0
-    seguro = getattr(documento, "seguro", None) or 0
-    otros = getattr(documento, "otros", None) or 0
-    cif = fob + float(flete) + float(seguro) + float(otros)
-    advalorem = cif * 0.06
-    iva = (cif + advalorem) * 0.19
-    total = cif + advalorem + iva
-
-    dua = {
-        "encabezado": {
-            "tipo_operacion": "Importacion",
-            "regimen": "Importacion a consumo",
-            "documento_id": documento_id,
-            "nombre_archivo": documento.nombre_archivo,
-            "fecha_generacion": datetime.utcnow().isoformat(),
-            "estado_aduanero": documento.estado_aduanero or "En Revision",
-        },
-        "importador": {
-            "nombre": documento.cliente or "N/E",
-            "proveedor": documento.proveedor or "N/E",
-        },
-        "despachante": {
-            "nombre": despachante.nombre if despachante else "N/E",
-            "rut": despachante.rut if despachante else "",
-        },
-        "valores": {
-            "fob": round(fob, 2),
-            "flete": float(flete),
-            "seguro": float(seguro),
-            "otros": float(otros),
-            "cif": round(cif, 2),
-            "advalorem_6": round(advalorem, 2),
-            "iva_19": round(iva, 2),
-            "total_tributos": round(advalorem + iva, 2),
-            "total_landed": round(total, 2),
-        },
-        "partidas": [
-            {
-                "orden": i + 1,
-                "descripcion": p.descripcion,
-                "cantidad": p.cantidad,
-                "precio_unitario": p.precio_unitario,
-                "subtotal": round(p.cantidad * p.precio_unitario, 2),
-                "partida_arancelaria": p.partida_corregida or p.partida_sugerida or "",
-            }
-            for i, p in enumerate(items)
-        ],
-    }
-
-    await registrar_auditoria(db, usuario_actual.id, "Generacion DUA", f"DUA generado para '{documento.nombre_archivo}' (ID: {documento.id})")
-    documento.dua_generado = True
-    await db.commit()
-
-    return dua

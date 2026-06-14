@@ -17,45 +17,46 @@ from ..dependencias import (
     obtener_rol_usuario,
 )
 
-router = APIRouter(prefix="/api/admin", tags=["Administración"])
+router = APIRouter(prefix="/api/admin", tags=["Administracion"])
 
-# ─── Reglas por defecto con las que se siembra la base de datos ───
+# ---- Reglas por defecto con las que se siembra la base de datos ----
+# Estas 5 reglas cubren los controles basicos que toda operacion aduanera deberia pasar.
 REGLAS_POR_DEFECTO = [
     {
         "nombre_regla": "IncotermValidationRule",
-        "nombre_mostrar": "Validación de Incoterm",
-        "descripcion": "Verifica que el Incoterm declarado (FOB, CIF, CFR, EXW, etc.) sea válido y que los cargos de flete/seguro sean consistentes con el término contractural.",
+        "nombre_mostrar": "Validacion de Incoterm",
+        "descripcion": "Verifica que el Incoterm declarado sea valido y que los cargos de flete/seguro sean consistentes.",
         "parametros": {"incoterms_permitidos": ["FOB","CIF","CFR","CPT","CIP","EXW","FCA","FAS","DAT","DAP","DDP"]},
     },
     {
         "nombre_regla": "CIFSquareRule",
-        "nombre_mostrar": "Cuadre Aritmético CIF",
-        "descripcion": "Valida que Subtotal + Flete + Seguro + Otros gastos sea igual al Total declarado, con una tolerancia configurable en USD.",
+        "nombre_mostrar": "Cuadre Aritmetico CIF",
+        "descripcion": "Valida que Subtotal + Flete + Seguro + Otros sea igual al Total declarado, con tolerancia configurable.",
         "parametros": {"tolerancia_usd": 2.0},
     },
     {
         "nombre_regla": "HSCodeVistoBuenoRule",
         "nombre_mostrar": "Vistos Buenos por Partida Arancelaria",
-        "descripcion": "Cruza la partida HS de cada ítem contra el catálogo de entidades regulatorias (SENASA, ISP, COFEPRIS, SUBTEL, etc.) y alerta si faltan permisos.",
+        "descripcion": "Cruza la partida HS contra el catalogo de entidades regulatorias y alerta si faltan permisos.",
         "parametros": {"umbral_faltantes_bloqueo": 3},
     },
     {
         "nombre_regla": "PesoBultosRule",
-        "nombre_mostrar": "Validación de Pesos y Bultos",
-        "descripcion": "Verifica que el peso bruto y la cantidad de bultos declarados en el B/L coincidan con el Packing List y la Factura, con tolerancia configurable.",
+        "nombre_mostrar": "Validacion de Pesos y Bultos",
+        "descripcion": "Verifica que peso bruto y bultos coincidan entre BL, Packing List y Factura.",
         "parametros": {"tolerancia_peso_kg": 5.0, "tolerancia_bultos": 1, "tolerancia_porcentual_peso": 0.05},
     },
     {
         "nombre_regla": "ProveedorIdentidadRule",
         "nombre_mostrar": "Identidad del Exportador / Proveedor",
-        "descripcion": "Compara mediante similitud de texto el nombre y Tax ID del exportador entre la Factura y el B/L para detectar suplantaciones o errores.",
+        "descripcion": "Compara nombre y Tax ID del exportador entre Factura y BL para detectar suplantaciones.",
         "parametros": {"umbral_similitud": 0.75},
     },
 ]
 
 
 async def _sembrar_reglas_si_vacio(db: AsyncSession):
-    """Inserta las reglas por defecto si la tabla está vacía."""
+    """Si la tabla de reglas esta vacia (base nueva), inserta las 5 reglas por defecto."""
     resultado = await db.execute(select(func.count(modelos.ReglaConfiguracion.id)))
     total = resultado.scalar() or 0
     if total > 0:
@@ -77,6 +78,7 @@ async def obtener_metricas_globales(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
+    """Dashboard del admin: total de operaciones, distribucion de riesgo, analistas activos."""
     limpiar_sesiones_expiradas()
 
     total = (await db.execute(select(func.count(modelos.DocumentoProcesado.id)))).scalar() or 0
@@ -128,12 +130,23 @@ async def obtener_todos_documentos(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
+    """Lista todos los documentos del sistema, con el nombre del analista que lo subio."""
     resultado = await db.execute(
         select(modelos.DocumentoProcesado)
-        .options(selectinload(modelos.DocumentoProcesado.partidas))
+        .options(
+            selectinload(modelos.DocumentoProcesado.partidas),
+            selectinload(modelos.DocumentoProcesado.usuario_rel),
+        )
         .order_by(desc(modelos.DocumentoProcesado.fecha_analisis))
     )
-    return resultado.scalars().all()
+    docs = resultado.scalars().all()
+    # Convierte cada documento a dict y agrega el nombre del usuario
+    respuesta = []
+    for doc in docs:
+        datos = esquemas.DocumentoProcesadoResponse.model_validate(doc).model_dump()
+        datos["usuario_nombre"] = doc.usuario_rel.nombre if doc.usuario_rel else None
+        respuesta.append(datos)
+    return respuesta
 
 
 @router.get("/users", response_model=List[esquemas.UserResponse])
@@ -141,6 +154,7 @@ async def obtener_todos_usuarios(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
+    """Lista todos los usuarios del sistema, con su rol y estado de conexion."""
     limpiar_sesiones_expiradas()
 
     resultado = await db.execute(
@@ -173,6 +187,7 @@ async def cambiar_estado_usuario(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
+    """Bloquea o desbloquea un usuario. El admin no puede bloquearse a si mismo."""
     resultado = await db.execute(
         select(modelos.Usuario).filter(modelos.Usuario.id == usuario_id)
     )
@@ -202,6 +217,7 @@ async def obtener_roles(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
+    """Lista los roles disponibles en el sistema."""
     resultado = await db.execute(select(modelos.Rol))
     return resultado.scalars().all()
 
@@ -213,6 +229,7 @@ async def cambiar_rol_usuario(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
+    """Cambia el rol de un usuario. El admin no puede cambiarse el rol a si mismo."""
     resultado = await db.execute(
         select(modelos.Usuario).filter(modelos.Usuario.id == usuario_id)
     )
@@ -246,6 +263,7 @@ async def eliminar_usuario(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
+    """Elimina un usuario del sistema. Antes desvincula sus documentos, notificaciones, observaciones y auditoria."""
     resultado = await db.execute(
         select(modelos.Usuario).filter(modelos.Usuario.id == usuario_id)
     )
@@ -286,7 +304,7 @@ async def eliminar_usuario(
         )
     )
 
-    await registrar_auditoria(db, admin.id, "Eliminación de Usuario",
+    await registrar_auditoria(db, admin.id, "Eliminacion de Usuario",
         f"Usuario '{usuario.nombre}' ({usuario.email}) eliminado permanentemente por el Administrador."
     )
 
@@ -294,7 +312,7 @@ async def eliminar_usuario(
     await db.commit()
 
     return {
-        "mensaje": f"Usuario {usuario.nombre} y todas sus dependencias asociadas eliminados con éxito."
+        "mensaje": f"Usuario {usuario.nombre} y todas sus dependencias asociadas eliminados con exito."
     }
 
 
@@ -304,13 +322,14 @@ async def crear_usuario(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
+    """El admin crea un usuario nuevo. Valida que el email no exista y que el rol sea valido."""
     resultado = await db.execute(
         select(modelos.Usuario).filter(modelos.Usuario.email == body.email)
     )
     if resultado.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El correo electrónico ya está registrado.",
+            detail="El correo electronico ya esta registrado.",
         )
 
     resultado_rol = await db.execute(
@@ -331,7 +350,7 @@ async def crear_usuario(
     await db.commit()
     await db.refresh(nuevo_usuario)
 
-    await registrar_auditoria(db, admin.id, "Creación de Usuario", f"Admin '{admin.nombre}' creó el usuario '{nuevo_usuario.nombre}' ({nuevo_usuario.email}) con rol '{rol.nombre}'.")
+    await registrar_auditoria(db, admin.id, "Creacion de Usuario", f"Admin '{admin.nombre}' creo el usuario '{nuevo_usuario.nombre}' ({nuevo_usuario.email}) con rol '{rol.nombre}'.")
     await db.commit()
 
     return {
@@ -345,6 +364,7 @@ async def obtener_auditoria(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
+    """Registro de auditoria completo: todas las acciones de todos los usuarios."""
     resultado = await db.execute(
         select(
             modelos.Auditoria.id,
@@ -372,7 +392,8 @@ async def obtener_auditoria(
     ]
 
 
-# ─── Endpoints de Configuración del Motor de Reglas ───
+# ---- Endpoints de Configuracion del Motor de Reglas ----
+# El admin puede activar/desactivar reglas, cambiar su severidad y ajustar los umbrales.
 
 
 @router.get("/rules", response_model=List[esquemas.ReglaConfiguracionResponse])
@@ -380,6 +401,7 @@ async def obtener_reglas(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
+    """Lista las reglas del motor de prevalidacion. Si la tabla esta vacia, las siembra automaticamente."""
     await _sembrar_reglas_si_vacio(db)
     resultado = await db.execute(
         select(
@@ -423,6 +445,7 @@ async def toggle_regla(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
+    """Prende o apaga una regla del motor."""
     resultado = await db.execute(
         select(modelos.ReglaConfiguracion).filter(modelos.ReglaConfiguracion.id == rule_id)
     )
@@ -449,6 +472,7 @@ async def cambiar_severidad_regla(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
+    """Cambia la severidad de una regla: IGNORAR, ADVERTENCIA o BLOQUEANTE."""
     resultado = await db.execute(
         select(modelos.ReglaConfiguracion).filter(modelos.ReglaConfiguracion.id == rule_id)
     )
@@ -479,6 +503,7 @@ async def cambiar_umbral_regla(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
+    """Ajusta los parametros/umbrales de una regla (ej: tolerancia en USD, umbral de similitud)."""
     resultado = await db.execute(
         select(modelos.ReglaConfiguracion).filter(modelos.ReglaConfiguracion.id == rule_id)
     )
@@ -492,14 +517,11 @@ async def cambiar_umbral_regla(
     regla.modificado_por_id = admin.id
 
     await registrar_auditoria(db, admin.id, "Cambio de Umbral de Regla", (
-            f"Regla '{regla.nombre_regla}': parámetros actualizados de "
+            f"Regla '{regla.nombre_regla}': parametros actualizados de "
             f"'{parametros_previos}' a '{json.dumps(body.parametros)}' por {admin.nombre}."
         ))
     await db.commit()
     return {
-        "mensaje": "Parámetros de umbral actualizados",
+        "mensaje": "Parametros de umbral actualizados",
         "parametros": body.parametros,
     }
-
-
-

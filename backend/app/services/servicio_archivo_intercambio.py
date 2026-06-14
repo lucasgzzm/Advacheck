@@ -5,14 +5,14 @@ from datetime import datetime
 
 
 def _xml_pretty(root: Element) -> str:
-    """Formatea un ElementTree como XML indentado."""
+    """Convierte un ElementTree a string XML con indentacion bonita."""
     raw = tostring(root, encoding="unicode")
     dom = minidom.parseString(raw.encode("utf-8"))
     return dom.toprettyxml(indent="  ")
 
 
 def _seg(tag: str, text: str = "", parent: Optional[Element] = None) -> Element:
-    """Crea un subelemento XML opcionalmente anidado."""
+    """Helper: crea un tag XML con texto adentro, opcionalmente anidado a un padre."""
     el = Element(tag)
     el.text = text
     if parent is not None:
@@ -21,7 +21,9 @@ def _seg(tag: str, text: str = "", parent: Optional[Element] = None) -> Element:
 
 
 def generar_xml_intercambio(documento: dict, detalles: list[dict], vistos_buenos: list[dict], usuario_nombre: str) -> str:
-    """Genera XML de intercambio aduanero con cabecera, operación, ítems y V°B°."""
+    """Genera un XML de intercambio aduanero con todo: cabecera, operacion, items y V°B°.
+    Sigue el esquema http://webcheck.ai/intercambio/v1.
+    """
     now = datetime.utcnow().isoformat()
 
     root = Element("IntercambioAduanero")
@@ -67,7 +69,7 @@ def generar_xml_intercambio(documento: dict, detalles: list[dict], vistos_buenos
 
 
 def generar_json_intercambio(documento: dict, detalles: list[dict], vistos_buenos: list[dict], usuario_nombre: str) -> dict:
-    """Genera JSON de intercambio aduanero con cabecera, operación, ítems y V°B°."""
+    """Genera un JSON de intercambio aduanero con la misma estructura que el XML."""
     return {
         "intercambio_aduanero": {
             "version": "1.0",

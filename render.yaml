@@ -6,13 +6,10 @@ databases:
 
 services:
   - type: web
-    name: webcheck-backend
-    runtime: python
+    name: advacheck
     region: ohio
-    plan: free
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: starter
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /
     envVars:
       - key: DATABASE_URL
@@ -21,32 +18,20 @@ services:
           property: connectionString
       - key: SECRET_KEY
         generateValue: true
+      - key: RENDER
+        value: "true"
       - key: CORS_ORIGINS
-        value: https://webcheck-frontend.onrender.com
+        value: "*"
+      # ── Llenar en el dashboard de Render ──
       - key: AZURE_OCR_ENDPOINT
         sync: false
       - key: AZURE_OCR_KEY
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: OPENAI_API_KEY
+      - key: SMTP_USERNAME
         sync: false
-
-  - type: web
-    name: webcheck-frontend
-    runtime: static
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    staticPublishPath: ./dist
-    pullRequestPreviewsEnabled: true
-    envVars:
-      - key: VITE_API_URL
-        value: https://webcheck-backend.onrender.com
-    headers:
-      - path: /*
-        name: X-Content-Type-Options
-        value: nosniff
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false

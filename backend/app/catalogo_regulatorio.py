@@ -1,11 +1,8 @@
-"""
-Módulo centralizado para datos regulatorios, catálogos estáticos y funciones de normalización.
-Elimina la duplicación de catálogos en el sistema.
-"""
-
-# ──────────────────────────────────────────────
-#  Catálogo de Entidades y Permisos
-# ──────────────────────────────────────────────
+# Catalogo de entidades regulatorias por rango de partida arancelaria.
+# Cada entrada asocia un rango de codigos (desde - hasta) con una entidad,
+# el tipo de permiso que se requiere y la ley que lo exige.
+# Esto se usa para determinar que Vistos Buenos (V°B°) necesita un documento
+# segun las partidas arancelarias que contenga.
 
 ENTIDADES_POR_PARTIDA = [
     {"rango_desde": "0101", "rango_hasta": "0609", "entidad": "SENASA", "tipo": "Certificado Fitosanitario", "ley": "Ley N° 18.450 / Resolución SENASA N° 125"},
@@ -41,6 +38,44 @@ ENTIDADES_POR_PARTIDA = [
     {"rango_desde": "9506", "rango_hasta": "9506", "entidad": "ISP", "tipo": "Certificado de Seguridad de Artículos Deportivos", "ley": "Resolución ISP N° 450"},
 ]
 
+
+def detectar_entidades_para_partida(partida: str) -> list:
+    """Revisa el catalogo y devuelve las entidades regulatorias que aplican
+    segun el codigo arancelario de la partida.
+    
+    Por ejemplo, si la partida es 0402.10, busca en que rango cae
+    y retorna las entidades correspondientes (SAG, SENASA, etc.).
+    """
+    if not partida:
+        return []
+    codigo = normalizar_partida(partida)
+    resultados = []
+    for regla in ENTIDADES_POR_PARTIDA:
+        if regla["rango_desde"] <= codigo <= regla["rango_hasta"]:
+            resultados.append({
+                "entidad": regla["entidad"],
+                "tipo_permiso": regla["tipo"],
+                "ley": regla["ley"],
+                "estado": "pendiente",
+            })
+    return resultados
+
+
+# Catalogos de Incoterms y monedas para las validaciones del motor de prevalidacion
+INCOTERMS_VALIDOS = {"FOB", "CIF", "EXW", "FCA", "FAS", "CFR", "CPT", "CIP", "DAP", "DPU", "DDP"}
+INCOTERMS_MARITIMOS = {"FAS", "FOB", "CFR", "CIF"}
+INCOTERMS_SEGURO_OBLIGA = {"CIF", "CIP"}
+MONEDAS_VALIDAS = {"USD", "EUR", "CLP", "MXN", "PEN", "COP", "BRL", "ARS"}
+
+
+def normalizar_partida(partida: str) -> str:
+    """Normaliza un codigo de partida arancelaria: saca puntos, espacios y guiones, y deja 4 digitos."""
+    if not partida:
+        return ""
+    partida_limpia = partida.replace(".", "").replace(" ", "").replace("-", "")
+    return partida_limpia[:4].ljust(4, "0")
+
+
 REGULADORES = {
     "SENASA": "Servicio Nacional de Sanidad Agraria",
     "SAG": "Servicio Agrícola y Ganadero",
@@ -52,39 +87,3 @@ REGULADORES = {
     "MINTRANS": "Ministerio de Transportes y Telecomunicaciones",
     "INN": "Instituto Nacional de Normalización",
 }
-
-# ──────────────────────────────────────────────
-#  Catálogos de Incoterms y Monedas
-# ──────────────────────────────────────────────
-
-INCOTERMS_VALIDOS = {"FOB", "CIF", "EXW", "FCA", "FAS", "CFR", "CPT", "CIP", "DAP", "DPU", "DDP"}
-INCOTERMS_MARITIMOS = {"FAS", "FOB", "CFR", "CIF"}
-INCOTERMS_SEGURO_OBLIGA = {"CIF", "CIP"}
-MONEDAS_VALIDAS = {"USD", "EUR", "CLP", "MXN", "PEN", "COP", "BRL", "ARS"}
-
-# ──────────────────────────────────────────────
-#  Funciones Compartidas
-# ──────────────────────────────────────────────
-
-def normalizar_partida(partida: str) -> str:
-    """Normaliza un código de partida arancelaria."""
-    if not partida:
-        return ""
-    partida_limpia = partida.replace(".", "").replace(" ", "").replace("-", "")
-    return partida_limpia[:4].ljust(4, "0")
-
-def detectar_entidades_para_partida(partida: str) -> list:
-    """Detecta las entidades que aplican a una partida según el catálogo."""
-    if not partida:
-        return []
-    codigo = normalizar_partida(partida)
-    resultados = []
-    for regla in ENTIDADES_POR_PARTIDA:
-        if regla["rango_desde"] <= codigo <= regla["rango_hasta"]:
-            resultados.append({
-                "entidad": regla["entidad"],
-                "tipo_permiso": regla["tipo"],
-                "ley": regla.get("ley", ""),
-                "estado": "pendiente",
-            })
-    return resultados

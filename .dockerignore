@@ -3,8 +3,7 @@
 **/node_modules/
 **/.env
 **/*.pyc
-backend/uploads/
-backend/almacenamiento_pdf/
+backend/cargas/
 .git
 .gitignore
 README.md

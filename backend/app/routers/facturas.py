@@ -1,15 +1,15 @@
+import copy
 import logging
 import os
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
 
 from .. import esquemas, modelos
 from ..base_datos import get_db
 from ..dependencias import obtener_usuario_actual
-from ..config import UPLOAD_DIR
+from ..configuracion import UPLOAD_DIR
 from ..services.servicio_extraccion import ExtractorService
 from ..services.servicio_texto import AITextService
 from ..services.servicio_prevalidacion import ServicioPrevalidacionAduanera, evaluar_confianza_extraccion, verificar_cuadratura_items
@@ -19,50 +19,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/facturas", tags=["Facturas"])
 
 
-@router.post("/", response_model=esquemas.FacturaResponse, status_code=status.HTTP_201_CREATED)
-async def registrar_y_evaluar_factura(
-    factura_req: esquemas.FacturaCreate,
-    envio_id: int,
-    db: AsyncSession = Depends(get_db),
-    usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
-):
-    """Registra una factura y ejecuta la prevalidación aduanera."""
-    evaluacion_dict = ServicioPrevalidacionAduanera.ejecutar(factura_req.model_dump())
-    eval_observaciones = "; ".join([e.get("resumen", "") for e in evaluacion_dict.get("etapas", []) if e.get("resumen")])
-    nivel_riesgo_general = evaluacion_dict.get("riesgo_global", "BAJO")
-
-    nueva_factura = modelos.Factura(
-        numero_factura=factura_req.numero_factura,
-        fecha_emision=factura_req.fecha_emision,
-        monto_total=factura_req.monto_total,
-        moneda=factura_req.moneda,
-        emisor_nombre=factura_req.emisor_nombre,
-        riesgo_calculado=nivel_riesgo_general,
-        observaciones_riesgo=eval_observaciones,
-        envio_id=envio_id,
-    )
-    db.add(nueva_factura)
-    await db.flush()
-
-    for item_req in factura_req.detalles:
-        # Se usa el motor completo ahora. Simulamos el resultado para compatibilidad de DB
-        evaluacion_item_inconsistente = False
-        evaluacion_item_sugerencia_partida = "0000.00.00.00"
-        nuevo_item = modelos.FacturaDetalle(
-            descripcion_producto=item_req.descripcion_producto,
-            cantidad=item_req.cantidad,
-            precio_unitario=item_req.precio_unitario,
-            partida_arancelaria_sugerida=evaluacion_item_sugerencia_partida,
-            inconsistente=evaluacion_item_inconsistente,
-            factura_id=nueva_factura.id,
-        )
-        db.add(nuevo_item)
-
-    await db.commit()
-    await db.refresh(nueva_factura)
-    return nueva_factura
-
-
 @router.post("/scan")
 async def escanear_factura_pdf(
     guardar: bool = True,
@@ -70,12 +26,48 @@ async def escanear_factura_pdf(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Extrae datos de una factura PDF y evalúa su riesgo."""
+    """Procesa un PDF de factura: extrae los datos con IA, evalua el riesgo,
+    ejecuta las 7 etapas de prevalidacion, y guarda el resultado en la base de datos.
+    """
+    from datetime import datetime, timedelta
+    from sqlalchemy import func, and_, select
+
     if not file.filename.endswith(".pdf"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Solo se admiten archivos PDF.",
         )
+
+    # Verifica si ya existe un documento con el mismo nombre y usuario en las últimas 24h
+    hora_hace_24h = datetime.utcnow() - timedelta(hours=24)
+    resultado_dup = await db.execute(
+        select(modelos.DocumentoProcesado.id)
+        .where(and_(
+            modelos.DocumentoProcesado.usuario_id == usuario_actual.id,
+            modelos.DocumentoProcesado.nombre_archivo == file.filename,
+            modelos.DocumentoProcesado.fecha_analisis >= hora_hace_24h,
+        ))
+        .limit(1)
+    )
+    doc_existente = resultado_dup.scalar_one_or_none()
+    if doc_existente:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Ya existe un análisis para '{file.filename}' (ID: {doc_existente}). Abre el documento existente desde tu historial.",
+        )
+
+    hora_hace_60_min = datetime.utcnow() - timedelta(hours=1)
+    resultado_limite = await db.execute(
+        select(func.count())
+        .select_from(modelos.DocumentoProcesado)
+        .where(and_(
+            modelos.DocumentoProcesado.usuario_id == usuario_actual.id,
+            modelos.DocumentoProcesado.fecha_analisis >= hora_hace_60_min
+        ))
+    )
+    usados = resultado_limite.scalar() or 0
+    if usados >= 20:
+        raise HTTPException(status_code=429, detail="Límite de documentos procesados por hora alcanzado")
 
     try:
         contenido = await file.read()
@@ -109,8 +101,17 @@ async def escanear_factura_pdf(
             ],
         )
 
+        # Ejecuta el motor de prevalidacion (7 etapas) y guarda el resultado completo
         evaluacion_dict = ServicioPrevalidacionAduanera.ejecutar(datos_extraidos)
-        eval_observaciones = "; ".join([e.get("resumen", "") for e in evaluacion_dict.get("etapas", []) if e.get("resumen")])
+
+        # Extrae los mensajes de los controles que fallaron o advirtieron
+        fallas = []
+        for etapa in evaluacion_dict.get("etapas", []):
+            for control in etapa.get("controles", []):
+                if control["estado"] in ("FAIL", "WARNING") and control["nombre"] != "scoring_final":
+                    fallas.append(control['mensaje'])
+        eval_observaciones = " | ".join(fallas) if fallas else "Sin observaciones"
+
         nivel_riesgo_general = evaluacion_dict.get("riesgo_global", "BAJO")
 
         items_evaluados = []
@@ -136,6 +137,10 @@ async def escanear_factura_pdf(
                     f.write(contenido)
                 ruta_rel = nombre_archivo_bd
 
+                # Toma una copia de los datos extraídos por la IA para guardarlos
+                # como referencia original y poder detectar cambios del usuario
+                datos_originales = copy.deepcopy(datos_extraidos)
+
                 nuevo_log = modelos.DocumentoProcesado(
                     nombre_archivo=file.filename,
                     proveedor=datos_extraidos["emisor"].get("nombre", "Desconocido"),
@@ -147,11 +152,27 @@ async def escanear_factura_pdf(
                     riesgo=nivel_riesgo_general,
                     usuario_id=usuario_actual.id,
                     ruta_archivo=ruta_rel,
+                    datos_originales=datos_originales,
+                    prevalidacion_resultado=evaluacion_dict,
+                    # Campos extra extraídos por OCR
+                    fecha_emision=datos_extraidos.get("fecha_emision"),
+                    moneda=datos_extraidos.get("moneda", "USD"),
+                    monto_subtotal=datos_extraidos.get("monto_subtotal", 0),
+                    remitente_dir=datos_extraidos["emisor"].get("direccion", ""),
+                    remitente_doc=datos_extraidos["emisor"].get("tax_id", ""),
+                    destinatario_dir=datos_extraidos["receptor"].get("direccion", ""),
+                    transporte_pais=datos_extraidos["emisor"].get("pais", ""),
+                    transporte_metodo=datos_extraidos.get("transporte_metodo", "No detectado"),
+                    peso_bruto=datos_extraidos.get("pesos", {}).get("bruto", 0),
+                    peso_neto=datos_extraidos.get("pesos", {}).get("neto", 0),
+                    numero_factura=datos_extraidos.get("numero_factura", "N/A"),
+                    incoterm=datos_extraidos.get("incoterm"),
+                    pais_origen=datos_extraidos.get("pais_origen"),
                 )
                 db.add(nuevo_log)
 
                 from ..services.servicio_auditoria import registrar_auditoria
-                await registrar_auditoria(db, usuario_actual.id, "Análisis de Documento", f"Extracción y evaluación de riesgo para '{file.filename}'.")
+                await registrar_auditoria(db, usuario_actual.id, "Analisis de Documento", f"Extraccion y evaluacion de riesgo para '{file.filename}'.")
 
                 await db.flush()
 
@@ -211,6 +232,7 @@ async def escanear_factura_pdf(
             },
             "riesgo": nivel_riesgo_general,
             "observaciones": eval_observaciones,
+            "prevalidacion": evaluacion_dict,
             "partidaPrincipal": items_evaluados[0]["partida_sugerida"] if items_evaluados else "No detectada",
             "detalles": items_evaluados,
             "validacion_error": datos_extraidos.get("validacion_error", False),
@@ -235,14 +257,16 @@ async def clasificar_item_arancelario(
     payload: dict,
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Clasifica un producto en su partida arancelaria vía IA."""
+    """Clasifica un producto en su partida arancelaria usando IA.
+    Recibe la descripcion del producto y devuelve la partida sugerida.
+    """
     descripcion = payload.get("descripcion_producto")
     if not descripcion:
-        raise HTTPException(status_code=400, detail="Falta la descripción del producto.")
+        raise HTTPException(status_code=400, detail="Falta la descripcion del producto.")
 
     res = await AITextService.classify_item(descripcion)
     if not res:
         raise HTTPException(
-            status_code=500, detail="Error al invocar al motor de clasificación IA."
+            status_code=500, detail="Error al invocar al motor de clasificacion IA."
         )
     return res

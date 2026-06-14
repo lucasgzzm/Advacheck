@@ -10,12 +10,12 @@ from ..dependencias import obtener_usuario_actual
 router = APIRouter(prefix="/api/clientes", tags=["Clientes"])
 
 
-@router.get("/", response_model=List[esquemas.ClienteResponse])
+@router.get("", response_model=List[esquemas.ClienteResponse])
 async def listar_clientes(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Lista todos los clientes del usuario autenticado."""
+    """Devuelve la cartera de clientes del agente logueado."""
     resultado = await db.execute(
         select(modelos.Cliente)
         .filter(modelos.Cliente.usuario_id == usuario_actual.id)
@@ -24,13 +24,15 @@ async def listar_clientes(
     return resultado.scalars().all()
 
 
-@router.post("/", response_model=esquemas.ClienteResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=esquemas.ClienteResponse, status_code=status.HTTP_201_CREATED)
 async def crear_cliente(
     payload: esquemas.ClienteCreate,
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Crea un nuevo cliente asociado al usuario."""
+    """Registra un nuevo importador/exportador en la cartera del agente.
+    No permite duplicados con el mismo RUT.
+    """
     existe = await db.execute(
         select(modelos.Cliente).filter(
             modelos.Cliente.identificacion_fiscal == payload.identificacion_fiscal,
@@ -40,7 +42,7 @@ async def crear_cliente(
     if existe.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Ya existe un cliente con ese RUT/identificación fiscal.",
+            detail="Ya existe un cliente con ese RUT/identificacion fiscal.",
         )
 
     cliente = modelos.Cliente(
@@ -65,7 +67,7 @@ async def actualizar_cliente(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Actualiza los datos de un cliente existente."""
+    """Modifica los datos de un cliente existente. Solo el agente dueno del cliente puede editarlo."""
     resultado = await db.execute(
         select(modelos.Cliente).filter(
             modelos.Cliente.id == cliente_id,
@@ -102,7 +104,7 @@ async def eliminar_cliente(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Elimina un cliente del sistema."""
+    """Elimina un cliente de la cartera."""
     resultado = await db.execute(
         select(modelos.Cliente).filter(
             modelos.Cliente.id == cliente_id,

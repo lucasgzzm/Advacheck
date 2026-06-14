@@ -1,27 +1,23 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 
-from .config import DATABASE_URL
+from .configuracion import DATABASE_URL
 
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    future=True
-)
+# Motor de base de datos asincrono (usamos asyncpg para PostgreSQL)
+engine = create_async_engine(DATABASE_URL, echo=False)
 
-AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
+# Fabrica de sesiones: cada vez que necesitamos hablar con la BD pedimos una sesion aca
+AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
+# Base para todos los modelos SQLAlchemy, de aca heredan las tablas
 Base = declarative_base()
-metadata = Base.metadata
 
 
+# Generador que se usa con Dependency Injection de FastAPI
+# Cada request abre una sesion, la usa y la cierra al terminar
 async def get_db():
-    """Provee una sesión asíncrona de base de datos por inyección de dependencias."""
     async with AsyncSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            await session.close()

@@ -7,7 +7,7 @@ databases:
 services:
   - type: web
     name: advacheck
-    runtime: image
+    runtime: docker
     region: ohio
     plan: starter
     dockerfilePath: ./Dockerfile

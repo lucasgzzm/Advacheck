@@ -782,12 +782,17 @@ class MotorValoracionAduanera:
         desglose: list[ItemDesglose] = []
         alertas: list[str] = []
 
-        for it in items:
+        for idx, it in enumerate(items):
             fob = it.cantidad * it.precio_unitario
             total_fob_items += fob
 
             peso_prop = (it.peso_neto_kg / total_peso) if total_peso > 0 else (1.0 / max(len(items), 1))
-            inc_asignado = total_incrementables * peso_prop
+
+            if idx < len(items) - 1:
+                inc_asignado = total_incrementables * peso_prop
+            else:
+                inc_asignado = total_incrementables - sum(d.incrementables_asignados for d in desglose)
+
             cif = fob + inc_asignado
 
             hs_norm = _normalizar_hs(it.hs_code)

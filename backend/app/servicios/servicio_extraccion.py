@@ -2,7 +2,7 @@ import pdfplumber
 import re
 import io
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from fastapi import HTTPException, status
 from .servicio_ocr import OCRService
 from .servicio_texto import AITextService

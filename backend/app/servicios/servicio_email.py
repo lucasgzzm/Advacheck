@@ -12,6 +12,7 @@ def enviar_correo_sincrono(destinatario: str, asunto: str, cuerpo_html: str) -> 
     if not BREVO_API_KEY:
         logger.warning("BREVO_API_KEY no configurada. No se envio el correo.")
         return {"exito": False, "error": "BREVO_API_KEY no configurada"}
+    logger.info(f"BREVO_API_KEY prefijo={BREVO_API_KEY[:15]} sufijo={BREVO_API_KEY[-10:]} len={len(BREVO_API_KEY)}")
 
     try:
         payload = {
@@ -34,5 +35,6 @@ def enviar_correo_sincrono(destinatario: str, asunto: str, cuerpo_html: str) -> 
         return {"exito": True}
 
     except requests.RequestException as e:
-        logger.error(f"Error enviando correo a {destinatario} via Brevo: {e}")
+        cuerpo = e.response.text if e.response is not None else ""
+        logger.error(f"Error enviando correo a {destinatario} via Brevo: {e} | cuerpo={cuerpo}")
         return {"exito": False, "error": str(e)}

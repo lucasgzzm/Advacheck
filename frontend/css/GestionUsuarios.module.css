@@ -279,6 +279,38 @@
   gap: 8px;
 }
 
+.createModalPanel {
+  width: 100%;
+  max-width: 440px;
+  padding: 32px;
+  animation: fadeIn 0.3s ease-out;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.createModalPanel .formField {
+  margin-bottom: 16px;
+}
+
+.createModalPanel label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.createModalPanel input,
+.createModalPanel select {
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+.createModalActions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .filterBar {
   padding: 16px 24px;
   border-bottom: 1px solid var(--card-border);

@@ -170,51 +170,58 @@ const UserManagement = () => {
           <p className={styles.pageSubtitle}>Administración de accesos, roles y seguridad de cuentas.</p>
         </div>
         <button
-          onClick={() => setShowCreateForm(!showCreateForm)}
+          onClick={() => setShowCreateForm(true)}
           className={`btn btn-primary ${styles.newUserBtn}`}
         >
-          {showCreateForm ? <X size={18} /> : <UserPlus size={18} />}
-          {showCreateForm ? 'Cancelar' : 'Nuevo Usuario'}
+          <UserPlus size={18} />
+          Nuevo Usuario
         </button>
       </header>
 
       {showCreateForm && (
-        <div className={`glass-panel ${styles.createFormPanel}`}>
-          <h3 className={styles.createFormTitle}>
-            <UserPlus size={20} color="var(--primary)" /> Crear Nuevo Usuario
-          </h3>
-          <form onSubmit={handleCreateUser} className={styles.createForm}>
-            <div className={styles.formField}>
-              <label>Nombre completo</label>
-              <input type="text" required placeholder="Ej: Juan Pérez" value={newUser.nombre} onChange={(e) => setNewUser({ ...newUser, nombre: e.target.value })}
-                className="form-input" />
-            </div>
-            <div className={styles.formField}>
-              <label>Email</label>
-              <input type="email" required placeholder="correo@webcheck.com" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                className="form-input" />
-            </div>
-            <div className={styles.formField}>
-              <label>Contraseña</label>
-              <input type="password" required placeholder="Mín. 6 caracteres" minLength={6} value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                className="form-input" />
-            </div>
-            <div className={styles.formField}>
-              <label>Rol</label>
-              <select required value={newUser.rol_id} onChange={(e) => setNewUser({ ...newUser, rol_id: parseInt(e.target.value) })}
-                className="form-input">
-                <option value="">Seleccionar...</option>
-                {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-              </select>
-            </div>
-            <div className={styles.formActions}>
-              <button type="submit" disabled={creating} className={`btn btn-primary ${styles.submitBtn}`}>
-                {creating ? <RefreshCw size={16} className="spin" /> : <Plus size={16} />}
-                {creating ? 'Creando...' : 'Crear Usuario'}
+        <div className={styles.modalOverlay}>
+          <div className={`glass-panel ${styles.createModalPanel}`}>
+            <div className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>
+                <UserPlus size={20} color="var(--primary)" /> Nuevo Usuario
+              </h3>
+              <button onClick={() => { setShowCreateForm(false); setCreateError(''); }} className={styles.modalCloseBtn}>
+                <X size={20} />
               </button>
-              {createError && <span className={styles.errorMsg}>{createError}</span>}
             </div>
-          </form>
+            <form onSubmit={handleCreateUser}>
+              <div className={styles.formField}>
+                <label>Nombre completo</label>
+                <input type="text" required placeholder="Ej: Juan Pérez" value={newUser.nombre} onChange={(e) => setNewUser({ ...newUser, nombre: e.target.value })}
+                  className="form-input" />
+              </div>
+              <div className={styles.formField}>
+                <label>Email</label>
+                <input type="email" required placeholder="correo@webcheck.com" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  className="form-input" />
+              </div>
+              <div className={styles.formField}>
+                <label>Contraseña</label>
+                <input type="password" required placeholder="Mín. 6 caracteres" minLength={6} value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  className="form-input" />
+              </div>
+              <div className={styles.formField}>
+                <label>Rol</label>
+                <select required value={newUser.rol_id} onChange={(e) => setNewUser({ ...newUser, rol_id: parseInt(e.target.value) })}
+                  className="form-input">
+                  <option value="">Seleccionar...</option>
+                  {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+                </select>
+              </div>
+              {createError && <span className={styles.errorMsg}>{createError}</span>}
+              <div className={styles.createModalActions}>
+                <button type="submit" disabled={creating} className={`btn btn-primary ${styles.submitBtn}`}>
+                  {creating ? <RefreshCw size={16} className="spin" /> : <Plus size={16} />}
+                  {creating ? 'Creando...' : 'Crear Usuario'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

@@ -10,7 +10,6 @@ WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app/ ./app/
-COPY backend/scripts/ ./scripts/
 COPY --from=frontend-build /frontend/dist ./estatico
 RUN mkdir -p cargas
 

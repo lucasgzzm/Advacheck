@@ -4,9 +4,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from sqlalchemy import text
-from .base_datos import engine, Base
+from sqlalchemy import text, select
+from .base_datos import engine, Base, AsyncSessionLocal
 from . import modelos
+from .seguridad import generar_hash
 from .rutas import facturas, autenticacion, administracion, documentos, catalogo, regulatorio
 from .configuracion import CORS_ORIGINS
 
@@ -77,6 +78,35 @@ async def iniciar():
                 await conn.execute(text(sql))
             except Exception as e:
                 logger.warning("No se pudo aplicar migracion columna %s: %s", col_name, str(e))
+
+    # Crea el admin por defecto si no existe ningun usuario administrador
+    async with AsyncSessionLocal() as db:
+        resultado = await db.execute(
+            select(modelos.Rol).filter(modelos.Rol.nombre == "Administrador")
+        )
+        rol = resultado.scalars().first()
+        if not rol:
+            rol = modelos.Rol(nombre="Administrador", descripcion="Acceso total al sistema")
+            db.add(rol)
+            await db.flush()
+            logger.info("Rol 'Administrador' creado automaticamente.")
+
+        resultado = await db.execute(
+            select(modelos.Usuario).filter(modelos.Usuario.email == "admin@webcheck.com")
+        )
+        if not resultado.scalars().first():
+            usuario = modelos.Usuario(
+                nombre="Administrador",
+                email="admin@webcheck.com",
+                contrasena_hash=generar_hash("admin123"),
+                activo=True,
+                rol_id=rol.id,
+            )
+            db.add(usuario)
+            await db.commit()
+            logger.info("Usuario admin creado: admin@webcheck.com")
+        else:
+            logger.info("Usuario admin ya existe, se omite creacion.")
 
 # Endpoint de salud que verifica que el servidor esta operativo
 @app.get("/", tags=["Estado"])

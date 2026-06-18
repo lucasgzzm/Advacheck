@@ -1,4 +1,5 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react';
+﻿// Detalle de factura con visor PDF, prevalidacion y aprobacion
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   AlertCircle, AlertTriangle, CheckCircle, Save, XCircle, ArrowLeft, Download,

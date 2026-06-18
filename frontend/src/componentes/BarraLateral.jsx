@@ -1,4 +1,5 @@
-﻿import React, { useState } from 'react';
+﻿// Barra lateral de navegacion con menu segun rol
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, LogOut, History as HistoryIcon, Activity } from 'lucide-react';
 import FloatingActionMenu from './interfaz/MenuAccionFlotante';

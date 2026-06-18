@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+// Panel principal del agente con subida de facturas y metricas del dia
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, AlertTriangle, AlertCircle, Zap, ExternalLink, Clock, Shield, FileText, Briefcase, Calendar, Activity, CheckCircle2, Hourglass } from 'lucide-react';
 import { CpuArchitecture } from '../componentes/interfaz/CpuArchitecture';

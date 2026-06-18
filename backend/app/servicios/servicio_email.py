@@ -8,6 +8,7 @@ from ..configuracion import SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
 logger = logging.getLogger(__name__)
 
 
+# Envia un correo electronico via SMTP con cuerpo HTML
 def enviar_correo_sincrono(destinatario: str, asunto: str, cuerpo_html: str) -> dict:
     if not SMTP_USERNAME or not SMTP_PASSWORD:
         logger.warning("SMTP no configurado. No se envio el correo.")

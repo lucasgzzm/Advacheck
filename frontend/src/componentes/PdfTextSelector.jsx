@@ -1,3 +1,4 @@
+// Selector de texto en PDF para extraer datos de facturas
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Scan, ZoomIn, ZoomOut, Loader2, AlertCircle } from 'lucide-react';
 

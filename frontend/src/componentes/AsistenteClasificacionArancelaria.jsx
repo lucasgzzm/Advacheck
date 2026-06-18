@@ -1,3 +1,4 @@
+// Asistente de clasificacion arancelaria con catalogo y busqueda
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Sparkles, Scale, Check, X, Search, ChevronDown, ChevronRight,

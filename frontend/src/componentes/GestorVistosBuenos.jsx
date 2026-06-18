@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿// Gestor de vistos buenos regulatorios con carga de documentos
+import React, { useState, useEffect } from 'react';
 import {
   Shield, ShieldCheck, ShieldAlert, FileText, CheckCircle, XCircle,
   Clock, Loader2, Upload, AlertTriangle, Building2, Scale, ExternalLink

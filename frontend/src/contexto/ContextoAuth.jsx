@@ -1,4 +1,5 @@
-﻿import React, { createContext, useContext, useState, useEffect } from 'react';
+﻿// Contexto de autenticacion con login, logout y sesion
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { peticionGet, peticionPost } from '../servicios/api';
 
 const AuthContext = createContext();

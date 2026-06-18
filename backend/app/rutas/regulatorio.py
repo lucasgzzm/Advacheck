@@ -11,6 +11,7 @@ from ..dependencias import obtener_usuario_actual, obtener_documento_seguro
 
 router = APIRouter(prefix="/api/regulatorio", tags=["Regulatorio"])
 
+# Entidades regulatorias requeridas para una partida arancelaria
 @router.get("/entidades-por-partida/{codigo}")
 async def entidades_para_partida(codigo: str):
     entidades = detectar_entidades_para_partida(codigo)
@@ -20,6 +21,7 @@ async def entidades_para_partida(codigo: str):
         "total": len(entidades),
     }
 
+# Vistos buenos asociados a un documento
 @router.get("/documentos/{documento_id}/vistos-buenos")
 async def obtener_vistos_buenos(
     documento_id: int,
@@ -33,6 +35,7 @@ async def obtener_vistos_buenos(
     )
     return resultado.scalars().all()
 
+# Sincroniza los V°B° según las partidas del documento
 @router.post("/documentos/{documento_id}/vistos-buenos/sincronizar")
 async def sincronizar_vistos_buenos(
     documento_id: int,
@@ -88,6 +91,7 @@ async def sincronizar_vistos_buenos(
         "vistos_buenos": resultado_final.scalars().all(),
     }
 
+# Actualiza el estado, observaciones o archivo de un V°B°
 @router.patch("/vistos-buenos/{vb_id}")
 async def actualizar_visto_bueno(
     vb_id: int,

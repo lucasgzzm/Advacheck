@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿// Historial global de facturas para administradores con filtros avanzados
+import React, { useState, useEffect } from 'react';
 import { API_BASE, peticionGet, peticionDelete } from '../servicios/api';
 import { Layers, Search, FileText, RefreshCw, User as UserIcon, Eye, Trash2, X, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';

@@ -1,4 +1,5 @@
-﻿import { StrictMode } from 'react'
+﻿// Punto de entrada de la aplicacion React
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './estilos/base.css'
 import App from './Aplicacion.jsx'

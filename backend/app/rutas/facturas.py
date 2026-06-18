@@ -22,6 +22,7 @@ router = APIRouter(prefix="/api/facturas", tags=["Facturas"])
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 
+# Escanea un PDF, extrae datos y evalúa riesgo aduanero
 @router.post("/scan")
 async def escanear_factura_pdf(
     guardar: bool = True,
@@ -322,6 +323,7 @@ async def escanear_factura_pdf(
             detail="Error inesperado al procesar el documento. Revisa que el archivo sea una factura válida e inténtalo de nuevo.",
         )
 
+# Clasifica un producto en su partida arancelaria usando IA
 @router.post("/clasificar-item")
 async def clasificar_item_arancelario(
     payload: dict,

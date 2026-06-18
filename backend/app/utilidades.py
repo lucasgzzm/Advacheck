@@ -2,6 +2,7 @@ import re
 from typing import Optional, Tuple
 from difflib import SequenceMatcher
 
+# Convierte un valor a float manejando moneda y formato
 def convertir_a_float(valor) -> float:
     if valor is None:
         return 0.0
@@ -13,6 +14,7 @@ def convertir_a_float(valor) -> float:
     except (ValueError, TypeError):
         return 0.0
 
+# Normaliza un valor a float o None si no es convertible
 def normalizar_numero(valor) -> Optional[float]:
     if valor is None:
         return None
@@ -21,6 +23,7 @@ def normalizar_numero(valor) -> Optional[float]:
     except (ValueError, TypeError):
         return None
 
+# Busca un valor en un diccionario probando multiples llaves
 def obtener_valor_anidado(diccionario: dict, *llaves, default=None):
     for llave in llaves:
         if isinstance(diccionario, dict):
@@ -29,6 +32,7 @@ def obtener_valor_anidado(diccionario: dict, *llaves, default=None):
                 return valor
     return default
 
+# Compara dos textos usando similitud de secuencia
 def comparar_textos(a: str, b: str, umbral: float = 0.75) -> Tuple[bool, float]:
     if not a or not b:
         return False, 0.0
@@ -37,11 +41,13 @@ def comparar_textos(a: str, b: str, umbral: float = 0.75) -> Tuple[bool, float]:
     score = SequenceMatcher(None, a, b).ratio()
     return score >= umbral, round(score, 4)
 
+# Verifica si un valor coincide con una expresion regular
 def coincide_patron(valor: str, patron: str) -> bool:
     if not valor:
         return False
     return bool(re.search(patron, valor, re.IGNORECASE))
 
+# Verifica que la suma de subtotal, flete, seguro y otros coincida con el total
 def verificar_cuadre_cif(
     subtotal: float,
     flete: float,

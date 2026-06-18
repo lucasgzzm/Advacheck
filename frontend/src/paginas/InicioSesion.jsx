@@ -1,4 +1,5 @@
-﻿import React, { useState } from 'react';
+﻿// Pagina de inicio de sesion con formulario de email y contrasena
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexto/ContextoAuth';
 import { AlertCircle, ShieldCheck, LogIn, Eye, EyeOff } from 'lucide-react';

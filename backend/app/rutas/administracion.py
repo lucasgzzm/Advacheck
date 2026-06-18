@@ -70,6 +70,7 @@ async def _sembrar_reglas_si_vacio(db: AsyncSession):
         ))
     await db.commit()
 
+# Métricas globales del dashboard administrativo
 @router.get("/metrics")
 async def obtener_metricas_globales(
     db: AsyncSession = Depends(get_db),
@@ -120,6 +121,7 @@ async def obtener_metricas_globales(
         "salud_ocr": 98.5,
     }
 
+# Estado de salud del sistema y servicios externos
 @router.get("/health")
 async def health_check(
     db: AsyncSession = Depends(get_db),
@@ -189,6 +191,7 @@ async def health_check(
         "timestamp": ahora.isoformat(),
     }
 
+# Errores más frecuentes en los últimos 30 días
 @router.get("/common-errors")
 async def errores_comunes(
     db: AsyncSession = Depends(get_db),
@@ -246,6 +249,7 @@ async def errores_comunes(
     lista_errores.sort(key=lambda x: x["cantidad"], reverse=True)
     return lista_errores[:4]
 
+# Lista todos los documentos procesados en el sistema
 @router.get("/documents", response_model=List[esquemas.DocumentoProcesadoResponse])
 async def obtener_todos_documentos(
     db: AsyncSession = Depends(get_db),
@@ -271,6 +275,7 @@ async def obtener_todos_documentos(
         respuesta.append(datos)
     return respuesta
 
+# Lista todos los usuarios del sistema
 @router.get("/users", response_model=List[esquemas.UserResponse])
 async def obtener_todos_usuarios(
     db: AsyncSession = Depends(get_db),
@@ -301,6 +306,7 @@ async def obtener_todos_usuarios(
         for f in filas
     ]
 
+# Activa o desactiva un usuario
 @router.patch("/users/{usuario_id}/status")
 async def cambiar_estado_usuario(
     usuario_id: int,
@@ -330,6 +336,7 @@ async def cambiar_estado_usuario(
         "mensaje": f"Estado del usuario {usuario.nombre} actualizado a {nuevo_estado}"
     }
 
+# Lista los roles disponibles en el sistema
 @router.get("/roles")
 async def obtener_roles(
     db: AsyncSession = Depends(get_db),
@@ -338,6 +345,7 @@ async def obtener_roles(
     resultado = await db.execute(select(modelos.Rol))
     return resultado.scalars().all()
 
+# Cambia el rol de un usuario
 @router.patch("/users/{usuario_id}/role")
 async def cambiar_rol_usuario(
     usuario_id: int,
@@ -371,6 +379,7 @@ async def cambiar_rol_usuario(
 
     return {"mensaje": f"Rol de {usuario.nombre} actualizado a {rol.nombre}"}
 
+# Elimina un usuario y sus datos asociados
 @router.delete("/users/{usuario_id}")
 async def eliminar_usuario(
     usuario_id: int,
@@ -422,6 +431,7 @@ async def eliminar_usuario(
         "mensaje": f"Usuario {usuario.nombre} y todas sus dependencias asociadas eliminados con exito."
     }
 
+# Crea un nuevo usuario desde el panel admin
 @router.post("/users", status_code=status.HTTP_201_CREATED)
 async def crear_usuario(
     body: esquemas.AdminCreateUserRequest,
@@ -463,6 +473,7 @@ async def crear_usuario(
         "usuario_id": nuevo_usuario.id,
     }
 
+# Historial completo de auditoría del sistema
 @router.get("/auditoria")
 async def obtener_auditoria(
     db: AsyncSession = Depends(get_db),
@@ -494,6 +505,7 @@ async def obtener_auditoria(
         for f in filas
     ]
 
+# Lista las reglas de prevalidación configuradas
 @router.get("/rules", response_model=List[esquemas.ReglaConfiguracionResponse])
 async def obtener_reglas(
     db: AsyncSession = Depends(get_db),
@@ -534,6 +546,7 @@ async def obtener_reglas(
         for f in filas
     ]
 
+# Activa o desactiva una regla de prevalidación
 @router.put("/rules/{rule_id}/toggle")
 async def toggle_regla(
     rule_id: int,
@@ -559,6 +572,7 @@ async def toggle_regla(
     await db.commit()
     return {"mensaje": f"Regla {'activada' if body.activa else 'desactivada'}", "activa": regla.activa}
 
+# Cambia la severidad de una regla (bloqueante, advertencia, informativa)
 @router.put("/rules/{rule_id}/severity")
 async def cambiar_severidad_regla(
     rule_id: int,
@@ -588,6 +602,7 @@ async def cambiar_severidad_regla(
         "severidad": regla.severidad,
     }
 
+# Actualiza los parámetros de umbral de una regla
 @router.put("/rules/{rule_id}/threshold")
 async def cambiar_umbral_regla(
     rule_id: int,

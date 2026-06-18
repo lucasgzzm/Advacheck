@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿// Gestion de usuarios con CRUD, roles y busqueda
+import React, { useState, useEffect } from 'react';
 import { API_BASE } from '../servicios/api';
 import { Users, UserX, UserCheck, Shield, Search, RefreshCw, Mail, X, Check, Trash2, UserPlus, Plus } from 'lucide-react';
 

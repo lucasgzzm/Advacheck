@@ -1,4 +1,5 @@
-﻿import { cn } from "../../libreria/utilidades";
+﻿// Animacion SVG decorativa de arquitectura CPU
+import { cn } from "../../libreria/utilidades";
 import React from "react";
 
 const CpuArchitecture = ({

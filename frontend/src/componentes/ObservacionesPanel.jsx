@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿// Panel de observaciones y notas con mensajeria
+import React, { useState, useEffect } from 'react';
 import { MessageSquare, Send, User, Clock, AlertTriangle, FileEdit, StickyNote } from 'lucide-react';
 import { peticionGet, peticionPost } from '../servicios/api';
 

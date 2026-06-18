@@ -1,3 +1,4 @@
-﻿export const MAX_FILE_SIZE_MB = 4;
+﻿// Constantes de tamano maximo de archivo y RPM
+export const MAX_FILE_SIZE_MB = 4;
 export const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 export const MAX_RPM = 15;

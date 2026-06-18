@@ -1,4 +1,5 @@
-﻿import React from 'react';
+﻿// Aplicacion principal con enrutador y rutas protegidas
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import PanelPrincipal from './paginas/PanelPrincipal';
 import DetalleFactura from './paginas/DetalleFactura';

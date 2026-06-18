@@ -10,6 +10,7 @@ from ..dependencias import obtener_usuario_actual
 
 router = APIRouter(prefix="/api/catalogo", tags=["Catalogo Arancelario"])
 
+# Devuelve el catálogo arancelario completo desde JSON
 @router.get("/arancel", status_code=status.HTTP_200_OK)
 async def obtener_catalogo_arancelario():
     ruta_archivo = os.path.join(os.path.dirname(__file__), "..", "datos_arancel.json")
@@ -20,6 +21,7 @@ async def obtener_catalogo_arancelario():
     except Exception as e:
         raise HTTPException(status_code=500, detail="Error leyendo el catálogo arancelario")
 
+# Registra o actualiza una partida en el catálogo personal
 @router.post("/partidas", status_code=status.HTTP_201_CREATED)
 async def registrar_partida(
     partida: esquemas.CatalogoPartidaCreate,

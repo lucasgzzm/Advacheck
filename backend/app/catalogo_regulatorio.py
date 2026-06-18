@@ -64,12 +64,14 @@ REGULADORES = {
     "ISP": "Instituto de Salud Publica",
 }
 
+# Normaliza el codigo de partida arancelaria a 4 digitos
 def normalizar_partida(partida: str) -> str:
     if not partida:
         return ""
     partida_limpia = partida.replace(".", "").replace(" ", "").replace("-", "")
     return partida_limpia[:4].ljust(4, "0")
 
+# Identifica las entidades regulatorias aplicables segun la partida
 def detectar_entidades_para_partida(partida: str) -> list:
     if not partida:
         return []

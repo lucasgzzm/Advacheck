@@ -28,6 +28,7 @@ from ..dependencias import (
 
 router = APIRouter(prefix="/api/auth", tags=["Autenticacion"])
 
+# Valida credenciales y devuelve tokens JWT
 @router.post("/login", response_model=esquemas.Token)
 async def iniciar_sesion(
     login_req: esquemas.LoginRequest,
@@ -92,6 +93,7 @@ async def iniciar_sesion(
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
+# Renueva el access token usando refresh token
 @router.post("/refresh", response_model=esquemas.Token)
 async def renovar_token(
     req: RefreshTokenRequest,
@@ -141,6 +143,7 @@ async def renovar_token(
         "user_role": rol,
     }
 
+# Registro público deshabilitado
 @router.post("/register", response_model=esquemas.Token, status_code=status.HTTP_201_CREATED)
 async def registrar(
     req: esquemas.RegisterRequest,
@@ -151,6 +154,7 @@ async def registrar(
         detail="El registro publico no esta disponible. Contacta al administrador.",
     )
 
+# Cierra la sesión del usuario
 @router.post("/logout")
 async def cerrar_sesion(
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
@@ -158,6 +162,7 @@ async def cerrar_sesion(
     usuarios_conectados.pop(usuario_actual.id, None)
     return {"mensaje": "Sesion cerrada"}
 
+# Devuelve el perfil del usuario autenticado
 @router.get("/me", response_model=esquemas.UserResponse)
 async def obtener_perfil(
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
@@ -172,6 +177,7 @@ async def obtener_perfil(
         "activo": usuario_actual.activo,
     }
 
+# Cambia la contraseña del usuario autenticado
 @router.post("/change-password")
 async def cambiar_password(
     req: esquemas.PasswordChangeRequest,

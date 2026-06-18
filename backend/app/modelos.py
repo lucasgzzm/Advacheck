@@ -4,11 +4,13 @@ from sqlalchemy.orm import relationship, backref
 import enum
 from .base_datos import Base
 
+# Valores posibles para el nivel de riesgo de un documento
 class NivelRiesgo(str, enum.Enum):
     BAJO = "bajo"
     MEDIO = "medio"
     ALTO = "alto"
 
+# Almacena los roles del sistema (Administrador, Usuario, etc)
 class Rol(Base):
     __tablename__ = "roles"
 
@@ -18,6 +20,7 @@ class Rol(Base):
 
     usuarios_rel = relationship("Usuario", back_populates="rol_rel")
 
+# Representa un usuario registrado en el sistema
 class Usuario(Base):
     __tablename__ = "usuarios"
 
@@ -32,6 +35,7 @@ class Usuario(Base):
     rol_rel = relationship("Rol", back_populates="usuarios_rel")
     auditoria_rel = relationship("Auditoria", back_populates="usuario_rel")
 
+# Representa un cliente asociado a documentos de importacion
 class Cliente(Base):
     __tablename__ = "clientes"
 
@@ -48,6 +52,7 @@ class Cliente(Base):
 
     usuario_rel = relationship("Usuario")
 
+# Registro de auditoria para rastrear acciones de los usuarios
 class Auditoria(Base):
     __tablename__ = "auditoria"
 
@@ -60,6 +65,7 @@ class Auditoria(Base):
 
     usuario_rel = relationship("Usuario", back_populates="auditoria_rel")
 
+# Almacena documentos de importacion procesados con sus metadatos
 class DocumentoProcesado(Base):
     __tablename__ = "documentos_procesados"
 
@@ -118,6 +124,7 @@ class DocumentoProcesado(Base):
 
     prevalidacion_resultado = Column(JSON, nullable=True)
 
+# Notas u observaciones asociadas a un documento procesado
 class Observacion(Base):
     __tablename__ = "observaciones"
 
@@ -132,6 +139,7 @@ class Observacion(Base):
     documento_rel = relationship("DocumentoProcesado", back_populates="observaciones_rel")
     usuario_rel = relationship("Usuario")
 
+# Catalogo de partidas arancelarias con frecuencia de uso
 class CatalogoPartida(Base):
     __tablename__ = "catalogo_partidas"
 
@@ -144,6 +152,7 @@ class CatalogoPartida(Base):
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     usuario_rel = relationship("Usuario")
 
+# Permisos o autorizaciones regulatorias vinculadas a un documento
 class VistoBueno(Base):
     __tablename__ = "vistos_buenos"
 
@@ -161,6 +170,7 @@ class VistoBueno(Base):
     documento_rel = relationship("DocumentoProcesado", backref="vistos_buenos_rel")
     usuario_rel = relationship("Usuario")
 
+# Lineas o items individuales dentro de un documento procesado
 class Partida(Base):
     __tablename__ = "partidas"
 
@@ -175,6 +185,7 @@ class Partida(Base):
 
     documento_rel = relationship("DocumentoProcesado", backref=backref("partidas", cascade="all, delete-orphan"))
 
+# Reglas de prevalidacion configurables por el administrador
 class ReglaConfiguracion(Base):
     __tablename__ = "reglas_configuracion"
 

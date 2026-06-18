@@ -9,6 +9,7 @@ AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_co
 
 Base = declarative_base()
 
+# Inyecta una sesion asincronica de base de datos como dependencia
 async def get_db():
     async with AsyncSessionLocal() as session:
         try:

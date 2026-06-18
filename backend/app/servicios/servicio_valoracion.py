@@ -647,12 +647,14 @@ TARIFAS_REFERENCIA: dict[str, float] = {
     "930690": 0.0, "930700": 0.0,
 }
 
+# Tasas arancelarias genericas por pais cuando no hay codigo especifico en TARIFAS_REFERENCIA
 TASAS_PAIS_DEFAULT: dict[str, float] = {
     "CL": 6.0,
     "MX": 15.0,
     "ES": 0.0,
 }
 
+# Tasas de IVA por pais destino
 TASAS_IVA: dict[str, float] = {
     "CL": 19.0,
     "MX": 16.0,
@@ -661,6 +663,7 @@ TASAS_IVA: dict[str, float] = {
 
 # ── Modelos de entrada ──
 
+# Modelo de item individual para entrada de valoracion
 class ItemValoracion(BaseModel):
     linea: int
     descripcion: Optional[str] = None
@@ -669,17 +672,20 @@ class ItemValoracion(BaseModel):
     precio_unitario: float = 0.0
     peso_neto_kg: float = 0.0
 
+# Configuracion de pais, TLC y tasa DTA para la valoracion
 class ConfiguracionValoracion(BaseModel):
     pais_destino: str = "CL"
     aplicar_tlc: bool = False
     tasa_dta_default: float = 0.0
 
+# Datos de cabecera de la factura para la valoracion
 class CabeceraValoracion(BaseModel):
     moneda: str = "USD"
     flete_global: float = 0.0
     seguro_global: float = 0.0
     otros_gastos_globales: float = 0.0
 
+# Solicitud completa de valoracion con configuracion, cabecera e items
 class SolicitudValoracion(BaseModel):
     configuracion: ConfiguracionValoracion
     cabecera_factura: CabeceraValoracion
@@ -687,6 +693,7 @@ class SolicitudValoracion(BaseModel):
 
 # ── Modelos de salida ──
 
+# Desglose detallado del costo de cada item (FOB, CIF, arancel, IVA, etc)
 class ItemDesglose(BaseModel):
     linea: int
     hs_code: str
@@ -703,6 +710,7 @@ class ItemDesglose(BaseModel):
     total_item: float = 0.0
     sobretasas_detectadas: list[str] = []
 
+# Totales consolidados de la valoracion (FOB, flete, seguro, tributos, landed cost)
 class ResumenValoracion(BaseModel):
     total_fob_items: float = 0.0
     total_flete: float = 0.0
@@ -716,6 +724,7 @@ class ResumenValoracion(BaseModel):
     total_tributos: float = 0.0
     total_landed_cost: float = 0.0
 
+# Resultado completo de la valoracion con resumen, desglose y alertas
 class ResultadoValoracion(BaseModel):
     resumen_cabecera: ResumenValoracion
     desglose_items: list[ItemDesglose]
@@ -723,6 +732,7 @@ class ResultadoValoracion(BaseModel):
 
 # ── Reglas de auditoría ──
 
+# Mapa de prefijos HS a sobretasas o impuestos especiales aplicables
 SOBRETASAS_POR_HS: dict[str, list[str]] = {
     "2204": ["Impuesto a bebidas alcohólicas aplicable"],
     "2205": ["Impuesto a bebidas alcohólicas aplicable"],
@@ -738,6 +748,7 @@ SOBRETASAS_POR_HS: dict[str, list[str]] = {
     "8525": ["Posible impuesto a equipos de telecomunicaciones"],
 }
 
+# Obtiene la tasa arancelaria ad-valorem para un codigo HS, pais y condicion TLC
 def _obtener_tasa_arancel(hs_code: str, pais: str, tlc: bool) -> float:
     if tlc:
         return 0.0
@@ -746,13 +757,16 @@ def _obtener_tasa_arancel(hs_code: str, pais: str, tlc: bool) -> float:
         return TARIFAS_REFERENCIA[code]
     return TASAS_PAIS_DEFAULT.get(pais, 6.0)
 
+# Normaliza un codigo HS eliminando puntos y guiones, devuelve los primeros 6 caracteres
 def _normalizar_hs(hs_code: str) -> str:
     return hs_code.replace(".", "").replace("-", "").strip()[:6]
 
+# Motor de calculo de valoracion aduanera con desglose por item
 class MotorValoracionAduanera:
     def __init__(self, solicitud: SolicitudValoracion):
         self.s = solicitud
 
+    # Calcula el landed cost completo: FOB, CIF, aranceles, IVA y totales por item
     def calcular(self) -> ResultadoValoracion:
         cfg = self.s.configuracion
         cab = self.s.cabecera_factura

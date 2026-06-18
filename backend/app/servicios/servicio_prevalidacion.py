@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 ESTADO = Literal["PASS", "WARNING", "FAIL", "NO_EJECUTADA", "PENDIENTE"]
 
+# Resultado de un control individual dentro de una etapa de prevalidacion
 class ControlPrevalidacion:
     def __init__(self, nombre: str, estado: ESTADO, mensaje: str, detalle: Optional[str] = None):
         self.nombre = nombre
@@ -29,6 +30,7 @@ class ControlPrevalidacion:
         self.mensaje = mensaje
         self.detalle = detalle
 
+    # Convierte el control a diccionario para serializar
     def to_dict(self) -> dict:
         return {
             "nombre": self.nombre,
@@ -37,6 +39,7 @@ class ControlPrevalidacion:
             "detalle": self.detalle,
         }
 
+# Etapa compuesta por multiples controles de validacion
 class EtapaPrevalidacion:
     def __init__(
         self,
@@ -58,9 +61,11 @@ class EtapaPrevalidacion:
         self.peso = peso
         self.contribucion = contribucion
 
+    # Agrega un control a la etapa
     def agregar_control(self, control: ControlPrevalidacion) -> None:
         self.controles.append(control)
 
+    # Calcula el estado consolidado de la etapa segun sus controles
     def calcular_estado(self) -> None:
         if not self.controles:
             self.estado = "NO_EJECUTADA"
@@ -74,6 +79,7 @@ class EtapaPrevalidacion:
         else:
             self.estado = "PASS"
 
+    # Convierte la etapa a diccionario para serializar
     def to_dict(self) -> dict:
         return {
             "numero": self.numero,
@@ -86,6 +92,7 @@ class EtapaPrevalidacion:
             "contribucion": self.contribucion,
         }
 
+# Patrones de validacion para campos comunes en facturas de comercio exterior
 PATRONES_CONFIANZA = {
     "numero_factura": r'^[A-Za-z0-9][A-Za-z0-9\-\/\.\#]{1,30}$',
     "moneda": r'^[A-Z]{3}$',
@@ -94,6 +101,7 @@ PATRONES_CONFIANZA = {
     "tax_id": r'^[A-Za-z0-9\.\-]{4,20}$',
 }
 
+# Evalua la confianza de cada campo extraido de la factura
 def evaluar_confianza_extraccion(datos: dict) -> dict:
     confianza = {}
     base = 85
@@ -239,6 +247,7 @@ def evaluar_confianza_extraccion(datos: dict) -> dict:
 
     return confianza
 
+# Verifica que la suma de items + flete + seguro + otros coincida con el total CIF
 def verificar_cuadratura_items(datos: dict) -> dict:
     detalles = datos.get("detalles") or []
     moneda = datos.get("moneda") or "USD"
@@ -421,6 +430,7 @@ def etapa2_validacion_cif(doc: dict) -> EtapaPrevalidacion:
     etapa.resumen = f"{exitosos} de {len(etapa.controles)} controles OK"
     return etapa
 
+# Busca entidades fiscalizadoras asociadas a una partida arancelaria
 def _detectar_permisos_por_partida(partida: str) -> list[dict]:
     codigo = _normalizar_partida(partida)
     if not codigo:
@@ -666,6 +676,7 @@ def etapa4_validacion_pesos(doc: dict, packing_list: Optional[dict] = None, bl: 
     etapa.resumen = f"{exitosos} de {len(etapa.controles)} controles OK"
     return etapa
 
+# Verifica consistencia del Incoterm, ajustes al valor aduanero y relacion comprador-vendedor
 def etapa5_validacion_valoracion(doc: dict) -> EtapaPrevalidacion:
     etapa = EtapaPrevalidacion(
         numero=5,
@@ -945,33 +956,41 @@ def etapa7_preclasificacion_riesgo(etapas: list[EtapaPrevalidacion]) -> EtapaPre
 
 class ServicioPrevalidacionAduanera:
     @staticmethod
-    def etapa1_validacion_formal(doc: dict) -> EtapaPrevalidacion:
+# Valida que la factura tenga los campos minimos obligatorios
+def etapa1_validacion_formal(doc: dict) -> EtapaPrevalidacion:
         return etapa1_validacion_formal(doc)
 
     @staticmethod
-    def etapa2_validacion_cif(doc: dict) -> EtapaPrevalidacion:
+# Valida el calculo aritmetico CIF y la asignacion de partidas arancelarias
+def etapa2_validacion_cif(doc: dict) -> EtapaPrevalidacion:
         return etapa2_validacion_cif(doc)
 
     @staticmethod
-    def etapa3_validacion_normativa(doc: dict) -> EtapaPrevalidacion:
+# Evalua requisitos regulatorios y permisos faltantes por partida arancelaria
+def etapa3_validacion_normativa(doc: dict) -> EtapaPrevalidacion:
         return etapa3_validacion_normativa(doc)
 
     @staticmethod
-    def etapa4_validacion_pesos(doc: dict, packing_list: Optional[dict] = None, bl: Optional[dict] = None) -> EtapaPrevalidacion:
+# Cruza pesos, bultos y cantidades entre factura, packing list y BL
+def etapa4_validacion_pesos(doc: dict, packing_list: Optional[dict] = None, bl: Optional[dict] = None) -> EtapaPrevalidacion:
         return etapa4_validacion_pesos(doc, packing_list, bl)
 
     @staticmethod
-    def etapa5_validacion_valoracion(doc: dict) -> EtapaPrevalidacion:
+# Verifica consistencia del Incoterm, ajustes al valor aduanero y relacion comprador-vendedor
+def etapa5_validacion_valoracion(doc: dict) -> EtapaPrevalidacion:
         return etapa5_validacion_valoracion(doc)
 
     @staticmethod
-    def etapa6_validacion_plazos(doc: dict, bl: Optional[dict] = None) -> EtapaPrevalidacion:
+# Verifica que la factura, BL y seguro esten dentro de plazos y vigencias
+def etapa6_validacion_plazos(doc: dict, bl: Optional[dict] = None) -> EtapaPrevalidacion:
         return etapa6_validacion_plazos(doc, bl)
 
     @staticmethod
-    def etapa7_preclasificacion_riesgo(etapas: list[EtapaPrevalidacion]) -> EtapaPrevalidacion:
+# Calcula el scoring de riesgo consolidando todas las etapas anteriores
+def etapa7_preclasificacion_riesgo(etapas: list[EtapaPrevalidacion]) -> EtapaPrevalidacion:
         return etapa7_preclasificacion_riesgo(etapas)
 
+    # Ejecuta las 7 etapas de prevalidacion en orden y retorna el resultado completo
     @classmethod
     def ejecutar(
         cls,

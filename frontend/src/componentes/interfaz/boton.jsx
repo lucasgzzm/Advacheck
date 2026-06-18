@@ -1,4 +1,5 @@
-﻿import * as React from "react"
+﻿// Boton reutilizable con variantes de estilo
+import * as React from "react"
 import { cn } from "../../libreria/utilidades"
 
 const variantStyles = {

@@ -1,4 +1,5 @@
-﻿import { useState, useEffect } from 'react';
+﻿// Modal de confirmacion para partida arancelaria seleccionada
+import { useState, useEffect } from 'react';
 import {
   Check, X, Loader2, Shield, Scale, FileText, AlertTriangle,
   ChevronDown, ChevronRight, BookOpen,

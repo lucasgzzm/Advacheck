@@ -1,4 +1,5 @@
-﻿import React from 'react';
+﻿// Disposicion layout con barra lateral
+import React from 'react';
 import Sidebar from './BarraLateral';
 import styles from '../../css/Disposicion.module.css';
 

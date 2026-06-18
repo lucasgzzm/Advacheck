@@ -1,3 +1,4 @@
+// Notificacion tipo toast con auto-descarte
 import React, { useEffect } from 'react';
 import styles from '../../css/Toast.module.css';
 

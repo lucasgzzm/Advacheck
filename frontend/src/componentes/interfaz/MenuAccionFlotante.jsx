@@ -1,4 +1,5 @@
-﻿import React, { useState, useRef, useEffect } from "react";
+﻿// Menu de accion flotante con animacion de apertura
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "./boton";
 import { User, X } from "lucide-react";

@@ -1,4 +1,5 @@
-﻿import React from 'react';
+﻿// Tabla de items con clasificacion arancelaria y RRNA
+import React from 'react';
 import { Package, ChevronUp, ChevronDown, XCircle, ShieldAlert, CheckCircle, Upload } from 'lucide-react';
 import AsistenteClasificacionArancelaria from './AsistenteClasificacionArancelaria';
 

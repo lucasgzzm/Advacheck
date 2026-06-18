@@ -1,3 +1,4 @@
+// Badges reutilizables de estado y riesgo
 import React from 'react'
 import { Lock, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react'
 import { cssVar as v } from '../libreria/utilidades'

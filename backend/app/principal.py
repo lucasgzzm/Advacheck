@@ -38,6 +38,7 @@ STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "estatico"
 if os.path.isdir(STATIC_DIR):
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
 
+# Crea las tablas y ejecuta migraciones al arrancar el servidor
 @app.on_event("startup")
 async def iniciar():
     async with engine.begin() as conn:
@@ -77,6 +78,7 @@ async def iniciar():
             except Exception as e:
                 logger.warning("No se pudo aplicar migracion columna %s: %s", col_name, str(e))
 
+# Endpoint de salud que verifica que el servidor esta operativo
 @app.get("/", tags=["Estado"])
 async def raiz():
     return {

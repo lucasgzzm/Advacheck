@@ -1,3 +1,4 @@
+// Configuracion de entidades regulatorias con colores e iconos
 export const ENTIDAD_CONFIG = {
   SENASA: { color: '#059669', bg: 'rgba(5,150,105,0.08)', icono: '🌱' },
   SAG: { color: '#65a30d', bg: 'rgba(101,163,13,0.08)', icono: '🐄' },

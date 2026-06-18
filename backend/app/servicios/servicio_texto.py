@@ -12,11 +12,13 @@ from ..configuracion import GEMINI_API_KEY, GEMINI_MIN_INTERVAL
 logger = logging.getLogger(__name__)
 
 
+# Carga el archivo JSON de clasificaciones arancelarias locales
 def _cargar_clasificaciones() -> list[dict]:
     ruta = os.path.join(os.path.dirname(os.path.dirname(__file__)), "datos_clasificacion.json")
     with open(ruta, encoding="utf-8") as f:
         return json.load(f)
 
+# Clasifica producto por descripcion usando palabras clave locales
 def _clasificar_local(descripcion: str) -> Optional[dict]:
     desc_lower = descripcion.lower()
     clasificaciones = _cargar_clasificaciones()
@@ -45,6 +47,7 @@ def _clasificar_local(descripcion: str) -> Optional[dict]:
         "rrna_detalles": None,
     }
 
+# Extrae y parsea el JSON de la respuesta de Gemini eliminando markdown
 def _extraer_json_respuesta(texto_respuesta: str) -> dict:
     if "```json" in texto_respuesta:
         texto_respuesta = texto_respuesta.split("```json")[1].split("```")[0].strip()
@@ -55,6 +58,7 @@ def _extraer_json_respuesta(texto_respuesta: str) -> dict:
 _ultima_llamada_gemini = 0.0
 _lock_gemini = asyncio.Lock()
 
+# Espera el tiempo minimo entre llamadas a Gemini para respetar el rate limit
 async def _esperar_intervalo():
     global _ultima_llamada_gemini
     async with _lock_gemini:
@@ -75,6 +79,7 @@ _estado_gemini = {
     "retry_after": None
 }
 
+# Extrae el tiempo de espera sugerido en respuestas 429 de Gemini
 def _extraer_retry_delay(respuesta: dict) -> Optional[float]:
     detalles = respuesta.get("error", {}).get("details", [])
     for d in detalles:
@@ -87,8 +92,8 @@ def _extraer_retry_delay(respuesta: dict) -> Optional[float]:
                     pass
     return None
 
+# Devuelve el estado cacheado de Gemini sin llamar a la API real
 async def obtener_estado_gemini() -> dict:
-    """Devuelve estado cacheado de Gemini. NO hace llamadas reales a la API."""
     global _estado_gemini
     ahora = time.time()
 
@@ -124,6 +129,7 @@ async def obtener_estado_gemini() -> dict:
     }
     return _estado_gemini
 
+# Llama a la API de Gemini con reintentos y control de rate limit
 async def _llamar_gemini(prompt: str, max_reintentos: int = 3) -> Optional[dict]:
     global _estado_gemini
     if not GEMINI_API_KEY:
@@ -202,12 +208,14 @@ async def _llamar_gemini(prompt: str, max_reintentos: int = 3) -> Optional[dict]
 
     return None
 
+# Servicio de texto con IA para extraer datos de facturas, BL y clasificar productos
 class AITextService:
 
     @staticmethod
     async def obtener_estado() -> dict:
         return await obtener_estado_gemini()
 
+    # Parsea el texto de una factura comercial usando Gemini y devuelve datos estructurados
     @staticmethod
     async def parse_invoice(raw_text: str, pages: Optional[list[dict]] = None) -> Optional[Dict[str, Any]]:
         if pages:
@@ -326,6 +334,7 @@ Responde UNICAMENTE con un objeto JSON valido usando esta estructura:
         logger.info(f"Estructuracion completada. Tokens: {tokens_info['total']}")
         return {"data": data_parsed, "tokens": tokens_info}
 
+    # Parsea el texto de un BL o AWB usando Gemini y extrae datos de transporte
     @staticmethod
     async def parse_bl(raw_text: str) -> Optional[Dict[str, Any]]:
         system_prompt = """
@@ -360,6 +369,7 @@ Estructura exacta:
             logger.error(f"Error parseando respuesta BL de Gemini: {e}")
             return None
 
+    # Clasifica un producto arancelariamente por su descripcion usando Gemini o fallback local
     @staticmethod
     async def classify_item(descripcion_producto: str) -> Optional[Dict[str, Any]]:
         if not GEMINI_API_KEY:

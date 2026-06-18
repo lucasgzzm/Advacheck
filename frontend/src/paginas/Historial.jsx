@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿// Historial de facturas del usuario con filtros y paginacion
+import React, { useState, useEffect } from 'react';
 import { API_BASE, peticionGet } from '../servicios/api';
 import { History as HistoryIcon, Search, AlertCircle, FileText, Trash2, RefreshCw, Lock, Eye, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';

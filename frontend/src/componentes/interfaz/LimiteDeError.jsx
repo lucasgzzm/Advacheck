@@ -1,3 +1,4 @@
+// Limite de error boundary para capturar errores de React
 import React from 'react';
 
 export default class LimiteDeError extends React.Component {

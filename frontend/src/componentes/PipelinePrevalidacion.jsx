@@ -1,4 +1,5 @@
-﻿import React, { useState } from 'react';
+﻿// Pipeline de prevalidacion con etapas y resultados
+import React, { useState } from 'react';
 import {
   AlertCircle, CheckCircle, XCircle, HelpCircle, ChevronDown, ChevronUp,
   Shield, FileText, Calculator, Scale, Package, Globe, Clock, Flag,

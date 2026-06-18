@@ -22,6 +22,7 @@ from ..servicios.servicio_valoracion import MotorValoracionAduanera, SolicitudVa
 
 router = APIRouter(prefix="/api/documentos", tags=["Documentos"])
 
+# Límite de documentos por hora y estado del servicio IA
 @router.get("/limite")
 async def obtener_limite_documentos(
     db: AsyncSession = Depends(get_db),
@@ -58,6 +59,7 @@ async def obtener_limite_documentos(
         "gemini_retry_after": gemini_retry_after,
     }
 
+# Historial de escaneos del usuario autenticado
 @router.get("/historial", response_model=List[esquemas.DocumentoProcesadoResponse])
 async def obtener_historial_escaneos(
     db: AsyncSession = Depends(get_db),
@@ -75,6 +77,7 @@ async def obtener_historial_escaneos(
     )
     return resultado.scalars().all()
 
+# Obtiene un documento por su ID
 @router.get("/{documento_id:int}", response_model=esquemas.DocumentoProcesadoResponse)
 async def obtener_documento(
     documento_id: int,
@@ -84,6 +87,7 @@ async def obtener_documento(
     documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
     return documento
 
+# Actualiza campos editables de un documento
 @router.put("/{documento_id:int}", response_model=esquemas.DocumentoProcesadoResponse)
 async def actualizar_documento(
     documento_id: int,
@@ -215,6 +219,7 @@ async def actualizar_documento(
     await db.refresh(documento)
     return documento
 
+# Descarga el PDF original del documento
 @router.get("/{documento_id:int}/archivo")
 async def servir_archivo_documento(
     documento_id: int,
@@ -233,6 +238,7 @@ async def servir_archivo_documento(
         filename=documento.nombre_archivo,
     )
 
+# Aprueba un documento o lo envía a revisión administrativa
 @router.put("/{documento_id:int}/aprobar")
 async def aprobar_documento(
     documento_id: int,
@@ -267,6 +273,7 @@ async def aprobar_documento(
     await db.commit()
     return {"mensaje": mensaje}
 
+# Prevalida, aprueba y bloquea un documento contra modificaciones
 @router.put("/{documento_id:int}/prevalidar-aprobar")
 async def prevalidar_y_aprobar_documento(
     documento_id: int,
@@ -359,6 +366,7 @@ async def prevalidar_y_aprobar_documento(
         "bloqueado": documento.bloqueado,
     }
 
+# Valida un permiso con PDF adjunto y actualiza la prevalidación
 @router.post("/{documento_id:int}/validar-permiso")
 async def validar_permiso(
     documento_id: int,
@@ -478,6 +486,7 @@ async def validar_permiso(
         "prevalidacion": evaluacion,
     }
 
+# Elimina un documento y su archivo físico
 @router.delete("/{documento_id:int}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_documento(
     documento_id: int,
@@ -506,6 +515,7 @@ async def eliminar_documento(
     await db.commit()
     return None
 
+# Observaciones de un documento
 @router.get("/{documento_id:int}/observaciones")
 async def obtener_observaciones(
     documento_id: int,
@@ -539,6 +549,7 @@ async def obtener_observaciones(
         for f in filas
     ]
 
+# Agrega una observación a un documento
 @router.post("/{documento_id:int}/observaciones", status_code=status.HTTP_201_CREATED)
 async def crear_observacion(
     documento_id: int,
@@ -568,6 +579,7 @@ async def crear_observacion(
 
     return {"id": nueva_obs.id, "mensaje": "Observacion registrada correctamente."}
 
+# Envía una solicitud de aclaración al importador por email
 @router.post("/{documento_id:int}/solicitar-aclaracion")
 async def solicitar_aclaracion_cliente(
     documento_id: int,
@@ -659,6 +671,7 @@ async def solicitar_aclaracion_cliente(
         "correo_enviado": correo_enviado,
     }
 
+# Alertas activas del usuario (V°B° pendientes)
 @router.get("/alertas")
 async def obtener_alertas(
     db: AsyncSession = Depends(get_db),
@@ -694,6 +707,7 @@ async def obtener_alertas(
 
     return alertas[:20]
 
+# Métricas de actividad del agente
 @router.get("/metrics")
 async def obtener_metricas_agente(
     db: AsyncSession = Depends(get_db),
@@ -758,6 +772,7 @@ async def obtener_metricas_agente(
         "pendientes_admin": pend_admin,
     }
 
+# Documentos pendientes de clasificar o con V°B° pendientes
 @router.get("/pendientes")
 async def obtener_pendientes_agente(
     db: AsyncSession = Depends(get_db),
@@ -799,6 +814,7 @@ async def obtener_pendientes_agente(
         "vbb_pendientes": docs_vbb_pendientes,
     }
 
+# Documentos en espera de aprobación administrativa
 @router.get("/vencimientos")
 async def obtener_vencimientos(
     db: AsyncSession = Depends(get_db),
@@ -831,6 +847,7 @@ async def obtener_vencimientos(
         "pendientes_admin": docs_pend_admin,
     }
 
+# Calcula el landed cost con impuestos y tasas según país destino
 @router.get("/{documento_id:int}/landed-cost")
 async def obtener_landed_cost(
     documento_id: int,
@@ -879,6 +896,7 @@ async def obtener_landed_cost(
         "total_landed_cost": round(total_landed, 2),
     }
 
+# Calcula la valoración aduanera desde datos enviados
 @router.post("/valorar")
 async def valorar_landed_cost(
     solicitud: SolicitudValoracion,

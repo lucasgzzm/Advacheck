@@ -7,6 +7,7 @@ from azure.ai.documentintelligence.models import AnalyzeResult
 
 logger = logging.getLogger(__name__)
 
+# Servicio de OCR con Azure Document Intelligence y fallback local con pdfplumber
 class OCRService:
 
     @staticmethod
@@ -15,10 +16,12 @@ class OCRService:
         key = os.getenv("AZURE_OCR_KEY")
         return not endpoint or not key or key.strip() == "" or "tu_clave" in key.lower()
 
+    # Indica si Azure OCR esta configurado o se usara modo simulado
     @staticmethod
     def is_mock_mode() -> bool:
         return OCRService._es_mock()
 
+    # Extrae texto completo del PDF, priorizando extraccion local antes de Azure
     @staticmethod
     async def extract_text(file_bytes: bytes) -> str:
         texto = await OCRService._extraer_local(file_bytes)
@@ -31,6 +34,7 @@ class OCRService:
 
         return await OCRService._extraer_con_azure(file_bytes)
 
+    # Extrae texto por pagina usando pdfplumber, con fallback a Azure OCR
     @staticmethod
     async def extract_text_per_page(file_bytes: bytes) -> list[dict]:
         pages = []
@@ -51,6 +55,7 @@ class OCRService:
         full_text = await OCRService.extract_text(file_bytes)
         return [{"page_num": 1, "text": full_text}] if full_text.strip() else []
 
+    # Construye texto plano con marcadores de pagina para enviar a la IA
     @staticmethod
     def build_page_marked_text(pages: list[dict]) -> str:
         partes = []
@@ -59,6 +64,7 @@ class OCRService:
             partes.append(p["text"])
         return "\n".join(partes)
 
+    # Extrae texto del PDF usando pdfplumber sin depender de Azure
     @staticmethod
     async def _extraer_local(file_bytes: bytes) -> str:
         try:
@@ -79,6 +85,7 @@ class OCRService:
             logger.debug(f"Extraccion local no disponible: {e}")
         return ""
 
+    # Extrae texto del PDF usando el servicio de Azure Document Intelligence
     @staticmethod
     async def _extraer_con_azure(file_bytes: bytes) -> str:
         endpoint = os.getenv("AZURE_OCR_ENDPOINT", "")
@@ -94,6 +101,7 @@ class OCRService:
         logger.info("Extraccion OCR completada con Azure.")
         return result.content
 
+    # Genera texto ficticio de factura para modo de prueba sin Azure
     @staticmethod
     def _get_mock_invoice_text() -> str:
         return """

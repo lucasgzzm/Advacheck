@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+﻿// Registro de auditoria con filtros por accion, usuario y fecha
+import React, { useState, useEffect, useMemo } from 'react';
 import { API_BASE } from '../servicios/api';
 import { Activity, Search, RefreshCw, Clock, User, ShieldCheck, Trash2, FileCheck, LogIn, Shield } from 'lucide-react';
 

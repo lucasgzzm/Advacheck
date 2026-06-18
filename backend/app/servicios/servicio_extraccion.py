@@ -8,6 +8,7 @@ from .servicio_ocr import OCRService
 from .servicio_texto import AITextService
 from .prefiltro import filtrar_paginas_relevantes
 
+# Servicio principal de extraccion: OCR + estructuración con IA + post-procesamiento
 class ExtractorService:
 
     @staticmethod
@@ -101,6 +102,7 @@ class ExtractorService:
 
         return data
 
+    # Busca paginas con keywords de BL/AWB y extrae datos de transporte via IA
     @staticmethod
     async def _try_extract_bl_from_pages(all_pages: List[dict], file_bytes: bytes) -> Optional[Dict[str, Any]]:
         BL_KEYWORDS = [
@@ -126,6 +128,7 @@ class ExtractorService:
 
         return await AITextService.parse_bl(bl_text)
 
+    # Valida que los montos en la factura cuadren aritmeticamente
     @staticmethod
     def _validate_integrity(data: Dict[str, Any]) -> Dict[str, Any]:
         items = data.get("detalles", [])

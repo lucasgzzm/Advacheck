@@ -1,6 +1,7 @@
 import re
 from typing import Any
 
+# Palabras clave para detectar paginas de comercio exterior
 KEYWORDS_COMERCIO_EXTERIOR = re.compile(
     r"INVOICE|FACTURA|BILL OF LADING|PACKING LIST|CIF|FOB|INCOTERM|"
     r"CANTIDAD|PRECIO|FOB VALUE|GROSS WEIGHT|SHIPPER|CONSIGNEE|"
@@ -9,6 +10,7 @@ KEYWORDS_COMERCIO_EXTERIOR = re.compile(
     re.IGNORECASE,
 )
 
+# Palabras clave para detectar paginas de terminos y condiciones legales
 KEYWORDS_TYC = re.compile(
     r"TERMS AND CONDITIONS|TÉRMINOS Y CONDICIONES|PRIVACY POLICY|"
     r"AVISO LEGAL|CONDITIONS OF SALE|LIMITATION OF LIABILITY|"
@@ -19,7 +21,7 @@ KEYWORDS_TYC = re.compile(
 
 PATRON_DATOS_NUMERICOS = re.compile(r"\d+.*\d+.*\d+")
 
-
+# Clasifica una pagina como RELEVANTE, IRRELEVANTE, TYC o VACIA segun su contenido
 def _clasificar_pagina(texto: str) -> str:
     lineas = texto.strip().split("\n")
     if len(texto.strip()) < 50:
@@ -45,6 +47,7 @@ def _clasificar_pagina(texto: str) -> str:
     return "IRRELEVANTE"
 
 
+# Filtra las paginas relevantes del OCR y devuelve metricas de reduccion
 def filtrar_paginas_relevantes(pages: list[dict]) -> dict[str, Any]:
     chars_originales = sum(len(p["text"]) for p in pages)
     paginas_originales = len(pages)

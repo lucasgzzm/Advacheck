@@ -1,3 +1,4 @@
+// Panel de administracion con pestanas de dashboard, reglas y salud del sistema
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {

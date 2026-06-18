@@ -4,15 +4,18 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 from datetime import datetime
 
+# Informacion base de un detalle de factura
 class FacturaDetalleBase(BaseModel):
     descripcion_producto: str
     cantidad: float
     precio_unitario: float
     partida_arancelaria_corregida: Optional[str] = None
 
+# Esquema para crear un detalle de factura
 class FacturaDetalleCreate(FacturaDetalleBase):
     pass
 
+# Datos principales de una factura de importacion
 class FacturaBase(BaseModel):
     numero_factura: Optional[str] = None
     fecha_emision: Optional[datetime]
@@ -32,19 +35,23 @@ class FacturaBase(BaseModel):
     receptor_tax_id: Optional[str] = None
     receptor_pais: Optional[str] = None
 
+# Esquema para crear una factura con sus detalles
 class FacturaCreate(FacturaBase):
     detalles: List[FacturaDetalleCreate]
 
+# Cuerpo de la solicitud de inicio de sesion
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
     remember: bool = False
 
+# Cuerpo de la solicitud de registro de usuario
 class RegisterRequest(BaseModel):
     nombre: str = Field(..., min_length=2)
     email: EmailStr
     password: str = Field(..., min_length=6)
 
+# Respuesta con tokens de acceso y refresco
 class Token(BaseModel):
     access_token: str
     refresh_token: str
@@ -52,6 +59,7 @@ class Token(BaseModel):
     user_name: str
     user_role: str
 
+# Datos del usuario devueltos al cliente
 class UserResponse(BaseModel):
     id: int
     nombre: str
@@ -63,17 +71,20 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# Solicitud del admin para crear un nuevo usuario
 class AdminCreateUserRequest(BaseModel):
     nombre: str = Field(..., min_length=2)
     email: EmailStr
     password: str = Field(..., min_length=6)
     rol_id: int
 
+# Solicitud de cambio de contrasena
 class PasswordChangeRequest(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=6)
     confirm_password: str
 
+# Respuesta completa con datos del documento procesado
 class DocumentoProcesadoResponse(BaseModel):
     id: int
     nombre_archivo: str
@@ -122,6 +133,7 @@ class DocumentoProcesadoResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# Campos actualizables de un documento procesado
 class DocumentoProcesadoUpdate(BaseModel):
     nombre_archivo: Optional[str] = None
     proveedor: Optional[str] = None
@@ -150,6 +162,7 @@ class DocumentoProcesadoUpdate(BaseModel):
     incoterm: Optional[str] = None
     pais_origen: Optional[str] = None
 
+# Datos para crear o actualizar una partida
 class PartidaCreate(BaseModel):
     descripcion: Optional[str] = None
     cantidad: Optional[float] = None
@@ -158,6 +171,7 @@ class PartidaCreate(BaseModel):
     partida_corregida: Optional[str] = None
     orden: Optional[int] = None
 
+# Respuesta con datos de una partida
 class PartidaResponse(BaseModel):
     id: int
     documento_id: int
@@ -171,6 +185,7 @@ class PartidaResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# Datos para crear un nuevo cliente
 class ClienteCreate(BaseModel):
     razon_social: str
     identificacion_fiscal: str
@@ -179,6 +194,7 @@ class ClienteCreate(BaseModel):
     telefono: Optional[str] = None
     contacto_nombre: Optional[str] = None
 
+# Campos actualizables de un cliente
 class ClienteUpdate(BaseModel):
     razon_social: Optional[str] = None
     identificacion_fiscal: Optional[str] = None
@@ -188,6 +204,7 @@ class ClienteUpdate(BaseModel):
     contacto_nombre: Optional[str] = None
     activo: Optional[bool] = None
 
+# Respuesta con datos de un cliente
 class ClienteResponse(BaseModel):
     id: int
     razon_social: str
@@ -202,17 +219,21 @@ class ClienteResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# Solicitud para avanzar al siguiente estado aduanero
 class AvanzarEstadoAduaneroRequest(BaseModel):
     estado: str = Field(..., description="Nuevo estado aduanero: Presentado, En Aforo Documental, En Aforo Fisico, Liquidado, Liberado")
 
+# Datos para crear una observacion en un documento
 class ObservacionCreate(BaseModel):
     contenido: str = Field(..., min_length=1, max_length=2000)
     tipo: str = "nota"
 
+# Datos para agregar una partida al catalogo
 class CatalogoPartidaCreate(BaseModel):
     descripcion_producto: str = Field(..., min_length=2)
     partida_arancelaria: str = Field(..., min_length=4)
 
+# Respuesta con datos de una regla de configuracion
 class ReglaConfiguracionResponse(BaseModel):
     id: int
     nombre_regla: str
@@ -227,18 +248,23 @@ class ReglaConfiguracionResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# Solicitud para activar o desactivar una regla
 class ReglaToggleRequest(BaseModel):
     activa: bool
 
+# Solicitud para cambiar la severidad de una regla
 class ReglaSeveridadRequest(BaseModel):
     severidad: str = Field(..., pattern=r"^(IGNORAR|ADVERTENCIA|BLOQUEANTE)$")
 
+# Parametros de umbral para una regla
 class ReglaThresholdRequest(BaseModel):
     parametros: dict
 
+# Confirmacion explicita para prevalidar un documento
 class PrevalidarAprobarRequest(BaseModel):
     confirmar: bool = Field(default=True, description="Confirmacion explicita del bloqueo del documento.")
 
+# Solicitud de aprobacion con opcion de revision
 class SolicitudAprobacion(BaseModel):
     nuevo_total: Optional[float] = None
     solicitar_revision: bool = False

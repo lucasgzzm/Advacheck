@@ -1,3 +1,4 @@
+// Modal generico con variantes de estado
 import React from 'react';
 
 const VARIANTES_MODAL = {

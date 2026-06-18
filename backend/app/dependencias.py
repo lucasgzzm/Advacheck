@@ -16,6 +16,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 usuarios_conectados: Dict[int, datetime] = {}
 
+# Obtiene el usuario autenticado a partir del token JWT
 async def obtener_usuario_actual(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
@@ -46,6 +47,7 @@ async def obtener_usuario_actual(
     usuarios_conectados[usuario.id] = datetime.now(timezone.utc).replace(tzinfo=None)
     return usuario
 
+# Verifica que el usuario actual tenga rol de administrador
 async def obtener_admin_actual(
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ) -> modelos.Usuario:
@@ -56,6 +58,7 @@ async def obtener_admin_actual(
         )
     return usuario_actual
 
+# Elimina conexiones de usuarios que superaron el tiempo de inactividad
 async def limpiar_conexiones_inactivas():
     ahora = datetime.now(timezone.utc).replace(tzinfo=None)
     limite = ahora - timedelta(minutes=SESSION_INACTIVITY_MINUTES)
@@ -63,6 +66,7 @@ async def limpiar_conexiones_inactivas():
     for uid in inactivos:
         del usuarios_conectados[uid]
 
+# Recupera un documento verificando que el usuario tenga acceso a el
 async def obtener_documento_seguro(
     documento_id: int,
     usuario_actual: modelos.Usuario,
@@ -83,6 +87,7 @@ async def obtener_documento_seguro(
         )
     return doc
 
+# Devuelve el nombre del rol de un usuario
 async def obtener_rol_usuario(usuario: modelos.Usuario, db: AsyncSession) -> str:
     return usuario.rol_rel.nombre
 

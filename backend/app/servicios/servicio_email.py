@@ -1,34 +1,38 @@
 import logging
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import requests
 
-from ..configuracion import SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_EMAIL
+from ..configuracion import BREVO_API_KEY, SMTP_FROM_EMAIL
 
 logger = logging.getLogger(__name__)
 
+BREVO_URL = "https://api.brevo.com/v3/smtp/email"
 
-# Envia un correo electronico via SMTP con cuerpo HTML
+
 def enviar_correo_sincrono(destinatario: str, asunto: str, cuerpo_html: str) -> dict:
-    if not SMTP_USERNAME or not SMTP_PASSWORD:
-        logger.warning("SMTP no configurado. No se envio el correo.")
-        return {"exito": False, "error": "SMTP no configurado"}
+    if not BREVO_API_KEY:
+        logger.warning("BREVO_API_KEY no configurada. No se envio el correo.")
+        return {"exito": False, "error": "BREVO_API_KEY no configurada"}
 
     try:
-        msg = MIMEMultipart("alternative")
-        msg["From"] = SMTP_FROM_EMAIL
-        msg["To"] = destinatario
-        msg["Subject"] = asunto
-        msg.attach(MIMEText(cuerpo_html, "html"))
+        payload = {
+            "sender": {"email": SMTP_FROM_EMAIL or "noreply@webcheck.app"},
+            "to": [{"email": destinatario}],
+            "subject": asunto,
+            "htmlContent": cuerpo_html,
+        }
 
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=15) as server:
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.send_message(msg)
+        headers = {
+            "api-key": BREVO_API_KEY,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
 
-        logger.info(f"Correo enviado a {destinatario}")
+        resp = requests.post(BREVO_URL, json=payload, headers=headers, timeout=15)
+        resp.raise_for_status()
+
+        logger.info(f"Correo enviado a {destinatario} via Brevo API")
         return {"exito": True}
 
-    except Exception as e:
-        logger.error(f"Error enviando correo a {destinatario}: {e}")
+    except requests.RequestException as e:
+        logger.error(f"Error enviando correo a {destinatario} via Brevo: {e}")
         return {"exito": False, "error": str(e)}

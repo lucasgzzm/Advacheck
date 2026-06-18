@@ -17,6 +17,8 @@ import ModalConfirmacionPartida from '../componentes/ModalConfirmacionPartida';
 import ItemsTable from '../componentes/ItemsTable';
 import Toast from '../componentes/Toast';
 import { cssVar as v } from '../libreria/utilidades';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import styles from '../../css/DetalleFactura.module.css';
 
 function VisorPDF({ pdfUrl, pdfBlobUrl, pdfCargando }) {
@@ -469,6 +471,7 @@ const InvoiceDetail = () => {
   const [prevalidacionFetch, setPrevalidacionFetch] = useState(null);
   const prevalidacionData = prevalidacionFetch ?? location.state?.prevalidacion ?? historyData?.prevalidacion_resultado;
   const rightPanelRef = useRef(null);
+  const reportRef = useRef(null);
   const [documentoFetchado, setDocumentoFetchado] = useState(false);
   const [cargandoDoc, setCargandoDoc] = useState(!rawData && !historyData && !!id && id !== 'null' && id !== 'undefined');
   const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
@@ -1219,21 +1222,32 @@ const InvoiceDetail = () => {
     }
   };
 
-  const handleExportCSV = () => {
-    const headers = ['Nro_Item', 'Descripcion_Producto', 'Cantidad', 'Precio_Unitario_USD', 'Total_Linea_USD', 'Partida_Arancelaria'];
-    const rows = factura.detalles.map((item, index) => [
-      index + 1, `"${item.descripcion}"`, item.cantidad, item.precio_unitario,
-      (parseFloat(item.cantidad || 0) * parseFloat(item.precio_unitario || 0)).toFixed(2),
-      item.partida_corregida || item.partida_sugerida,
-    ]);
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(e => e.join(';'))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `WebCheck_Factura_${factura.numero}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleExportPDF = async () => {
+    if (!reportRef.current) return;
+    try {
+      mostrarToast('Generando PDF...', 'info');
+      const canvas = await html2canvas(reportRef.current, { scale: 2, useCORS: true, logging: false });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const anchoPagina = pdf.internal.pageSize.getWidth();
+      const altoPagina = pdf.internal.pageSize.getHeight();
+      const altoImg = (canvas.height * anchoPagina) / canvas.width;
+      let resto = altoImg;
+      let posY = 0;
+      pdf.addImage(imgData, 'PNG', 0, posY, anchoPagina, altoImg);
+      resto -= altoPagina;
+      while (resto > 0) {
+        posY -= altoPagina;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, posY, anchoPagina, altoImg);
+        resto -= altoPagina;
+      }
+      pdf.save(`WebCheck_Reporte_${factura.numero || 'documento'}.pdf`);
+      mostrarToast('PDF generado exitosamente', 'success');
+    } catch (err) {
+      console.error('Error al generar PDF:', err);
+      mostrarToast('Error al generar el PDF', 'error');
+    }
   };
 
   return (
@@ -1266,8 +1280,8 @@ const InvoiceDetail = () => {
               <Lock size={12} /> Aprobado
             </div>
           )}
-          <button onClick={handleExportCSV} className={`btn btn-secondary ${styles.exportBtn}`}>
-            <Download size={14} /> CSV
+          <button onClick={handleExportPDF} className={`btn btn-secondary ${styles.exportBtn}`}>
+            <FileText size={14} /> PDF
           </button>
           {!bloqueado && ((id && id !== 'null') || historyData?.id) && (
             <button onClick={() => setAclaracionModal(true)}
@@ -1661,6 +1675,155 @@ const InvoiceDetail = () => {
         email={emailAclaracion}
       />
       <Toast mensaje={toast?.mensaje} tipo={toast?.tipo} onCerrar={() => setToast(null)} />
+
+      <div ref={reportRef} style={{ position: 'absolute', left: '-9999px', top: 0, width: '800px', background: '#fff', color: '#000', fontFamily: 'Arial, sans-serif', fontSize: '11px', lineHeight: '1.4', padding: '40px', zIndex: -1 }}>
+        <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #1e40af', paddingBottom: '15px' }}>
+          <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e40af', margin: '0 0 4px' }}>REPORTE DE EXTRACCIÓN ADUANERA</h1>
+          <p style={{ fontSize: '10px', color: '#666', margin: 0 }}>Generado el {new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })} por {user?.name || '—'}</p>
+        </div>
+
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+          <thead><tr><th colSpan={2} style={{ background: '#1e40af', color: '#fff', padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold' }}>DATOS DEL DOCUMENTO</th></tr></thead>
+          <tbody>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', width: '180px', background: '#f8fafc' }}>N° Factura</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.numero || '—'}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Emisor</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.emisor || '—'}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Fecha Emisión</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.fecha || '—'}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Moneda</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.moneda || '—'}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Incoterm</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.incoterm || '—'}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>País Origen</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.pais_origen || '—'}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Riesgo</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{(factura.riesgo || '—').toUpperCase()}</td></tr>
+          </tbody>
+        </table>
+
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+          <thead><tr><th colSpan={2} style={{ background: '#1e40af', color: '#fff', padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold' }}>PARTES</th></tr></thead>
+          <tbody>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', width: '180px', background: '#f8fafc' }}>Remitente</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.emisor || '—'}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Doc. Remitente</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.remitente_doc || '—'}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Dir. Remitente</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.remitente_dir || '—'}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Destinatario</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.receptor || '—'}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Tax ID</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.receptor_tax || '—'}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Dir. Destinatario</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.destinatario_dir || '—'}</td></tr>
+          </tbody>
+        </table>
+
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+          <thead><tr><th colSpan={2} style={{ background: '#1e40af', color: '#fff', padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold' }}>VALORES FINANCIEROS</th></tr></thead>
+          <tbody>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', width: '180px', background: '#f8fafc' }}>Monto Subtotal</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>${(factura.monto_subtotal || 0).toFixed(2)}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Flete</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>${flete.toFixed(2)}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Seguro</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>${seguro.toFixed(2)}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Otros Gastos</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>${otrosGastos.toFixed(2)}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#1e40af', color: '#fff' }}>Total CIF</td><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold' }}>${(factura.monto_total || valorCIF || 0).toFixed(2)}</td></tr>
+          </tbody>
+        </table>
+
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+          <thead><tr><th colSpan={2} style={{ background: '#1e40af', color: '#fff', padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold' }}>LOGÍSTICA</th></tr></thead>
+          <tbody>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', width: '180px', background: '#f8fafc' }}>Transporte País</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.transporte_pais || '—'}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Método Transporte</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{factura.transporte_metodo || '—'}</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Peso Bruto</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{(factura.peso_bruto || 0).toFixed(2)} kg</td></tr>
+            <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Peso Neto</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>{(factura.peso_neto || 0).toFixed(2)} kg</td></tr>
+          </tbody>
+        </table>
+
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+          <thead><tr><th style={{ background: '#1e40af', color: '#fff', padding: '8px 10px', textAlign: 'left', fontSize: '11px', fontWeight: 'bold' }}>#</th><th style={{ background: '#1e40af', color: '#fff', padding: '8px 10px', textAlign: 'left', fontSize: '11px', fontWeight: 'bold' }}>Descripción</th><th style={{ background: '#1e40af', color: '#fff', padding: '8px 10px', textAlign: 'right', fontSize: '11px', fontWeight: 'bold' }}>Cant.</th><th style={{ background: '#1e40af', color: '#fff', padding: '8px 10px', textAlign: 'right', fontSize: '11px', fontWeight: 'bold' }}>P. Unit.</th><th style={{ background: '#1e40af', color: '#fff', padding: '8px 10px', textAlign: 'right', fontSize: '11px', fontWeight: 'bold' }}>Total</th><th style={{ background: '#1e40af', color: '#fff', padding: '8px 10px', textAlign: 'right', fontSize: '11px', fontWeight: 'bold' }}>Peso Neto</th><th style={{ background: '#1e40af', color: '#fff', padding: '8px 10px', textAlign: 'left', fontSize: '11px', fontWeight: 'bold' }}>Partida Arancelaria</th></tr></thead>
+          <tbody>
+            {(factura.detalles || []).map((item, i) => (
+              <tr key={i}>
+                <td style={{ padding: '5px 10px', border: '1px solid #ddd', textAlign: 'center' }}>{i + 1}</td>
+                <td style={{ padding: '5px 10px', border: '1px solid #ddd' }}>{item.descripcion || '—'}</td>
+                <td style={{ padding: '5px 10px', border: '1px solid #ddd', textAlign: 'right' }}>{item.cantidad || 0}</td>
+                <td style={{ padding: '5px 10px', border: '1px solid #ddd', textAlign: 'right' }}>${(item.precio_unitario || 0).toFixed(2)}</td>
+                <td style={{ padding: '5px 10px', border: '1px solid #ddd', textAlign: 'right' }}>${((item.cantidad || 0) * (item.precio_unitario || 0)).toFixed(2)}</td>
+                <td style={{ padding: '5px 10px', border: '1px solid #ddd', textAlign: 'right' }}>{(item.peso_neto_kg || 0).toFixed(3)} kg</td>
+                <td style={{ padding: '5px 10px', border: '1px solid #ddd' }}>{item.partida_corregida || item.partida_sugerida || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {(lc || valoracionDetail) && (
+          <>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '12px' }}>
+              <thead><tr><th colSpan={2} style={{ background: '#1e40af', color: '#fff', padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold' }}>LIQUIDACIÓN TRIBUTARIA — RESUMEN</th></tr></thead>
+              <tbody>
+                <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', width: '180px', background: '#f8fafc' }}>Valor FOB</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>${(lc?.valor_fob || valorFOB || 0).toFixed(2)}</td></tr>
+                <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Flete</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>${(lc?.flete || flete || 0).toFixed(2)}</td></tr>
+                <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Seguro</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>${(lc?.seguro || seguro || 0).toFixed(2)}</td></tr>
+                <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Otros Gastos</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>${(lc?.otros || otrosGastos || 0).toFixed(2)}</td></tr>
+                <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Valor Aduana (CIF)</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>${(lc?.valor_cif || valorCIF || 0).toFixed(2)}</td></tr>
+                <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>Arancel</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>${(lc?.impuesto_advalorem || 0).toFixed(2)}</td></tr>
+                {lc?.dta > 0 && <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>DTA</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>${(lc?.dta || 0).toFixed(2)}</td></tr>}
+                <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#f8fafc' }}>IVA ({lc?.tasa_iva || 19}%)</td><td style={{ padding: '6px 12px', border: '1px solid #ddd' }}>${(lc?.impuesto_iva || 0).toFixed(2)}</td></tr>
+                <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#1e40af', color: '#fff' }}>TOTAL TRIBUTOS</td><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold' }}>${(lc?.total_tributos || 0).toFixed(2)}</td></tr>
+                <tr><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold', background: '#047857', color: '#fff' }}>TOTAL LANDED COST</td><td style={{ padding: '6px 12px', border: '1px solid #ddd', fontWeight: 'bold' }}>${(lc?.total_landed_cost || 0).toFixed(2)}</td></tr>
+              </tbody>
+            </table>
+
+            {valoracionDetail?.desglose_items && valoracionDetail.desglose_items.length > 0 && (
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ background: '#0369a1', color: '#fff', padding: '6px 8px', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>#</th>
+                    <th style={{ background: '#0369a1', color: '#fff', padding: '6px 8px', textAlign: 'left', fontSize: '10px', fontWeight: 'bold' }}>HS Code</th>
+                    <th style={{ background: '#0369a1', color: '#fff', padding: '6px 8px', textAlign: 'left', fontSize: '10px', fontWeight: 'bold' }}>Descripción</th>
+                    <th style={{ background: '#0369a1', color: '#fff', padding: '6px 8px', textAlign: 'right', fontSize: '10px', fontWeight: 'bold' }}>FOB</th>
+                    <th style={{ background: '#0369a1', color: '#fff', padding: '6px 8px', textAlign: 'right', fontSize: '10px', fontWeight: 'bold' }}>Peso Prop.</th>
+                    <th style={{ background: '#0369a1', color: '#fff', padding: '6px 8px', textAlign: 'right', fontSize: '10px', fontWeight: 'bold' }}>Increm.</th>
+                    <th style={{ background: '#0369a1', color: '#fff', padding: '6px 8px', textAlign: 'right', fontSize: '10px', fontWeight: 'bold' }}>CIF</th>
+                    <th style={{ background: '#0369a1', color: '#fff', padding: '6px 8px', textAlign: 'right', fontSize: '10px', fontWeight: 'bold' }}>Arancel</th>
+                    <th style={{ background: '#0369a1', color: '#fff', padding: '6px 8px', textAlign: 'right', fontSize: '10px', fontWeight: 'bold' }}>IVA</th>
+                    <th style={{ background: '#0369a1', color: '#fff', padding: '6px 8px', textAlign: 'right', fontSize: '10px', fontWeight: 'bold' }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {valoracionDetail.desglose_items.map((d, i) => (
+                    <tr key={i}>
+                      <td style={{ padding: '4px 8px', border: '1px solid #ddd', textAlign: 'center' }}>{d.linea}</td>
+                      <td style={{ padding: '4px 8px', border: '1px solid #ddd', fontSize: '10px' }}>{d.hs_code || '—'}</td>
+                      <td style={{ padding: '4px 8px', border: '1px solid #ddd', fontSize: '10px' }}>{d.descripcion || '—'}</td>
+                      <td style={{ padding: '4px 8px', border: '1px solid #ddd', textAlign: 'right', fontSize: '10px' }}>${(d.fob_asignado || 0).toFixed(2)}</td>
+                      <td style={{ padding: '4px 8px', border: '1px solid #ddd', textAlign: 'right', fontSize: '10px' }}>{(d.peso_proporcional * 100 || 0).toFixed(1)}%</td>
+                      <td style={{ padding: '4px 8px', border: '1px solid #ddd', textAlign: 'right', fontSize: '10px' }}>${(d.incrementables_asignados || 0).toFixed(2)}</td>
+                      <td style={{ padding: '4px 8px', border: '1px solid #ddd', textAlign: 'right', fontSize: '10px' }}>${(d.cif_asignado || 0).toFixed(2)}</td>
+                      <td style={{ padding: '4px 8px', border: '1px solid #ddd', textAlign: 'right', fontSize: '10px' }}>${(d.arancel_monto || 0).toFixed(2)}</td>
+                      <td style={{ padding: '4px 8px', border: '1px solid #ddd', textAlign: 'right', fontSize: '10px' }}>${(d.iva_monto || 0).toFixed(2)}</td>
+                      <td style={{ padding: '4px 8px', border: '1px solid #ddd', textAlign: 'right', fontSize: '10px' }}>${(d.total_item || 0).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {valoracionDetail?.desglose_items?.some(d => d.sobretasas_detectadas?.length > 0) && (
+              <div style={{ marginBottom: '16px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: '6px', padding: '10px 14px' }}>
+                <p style={{ fontWeight: 'bold', margin: '0 0 6px', fontSize: '11px', color: '#92400e' }}>SOBRETASAS DETECTADAS</p>
+                {valoracionDetail.desglose_items.filter(d => d.sobretasas_detectadas?.length > 0).map((d, i) => (
+                  <p key={i} style={{ margin: '2px 0', fontSize: '10px', color: '#92400e' }}>
+                    <strong>Item {d.linea}:</strong> {d.sobretasas_detectadas.join(', ')}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {valoracionDetail?.alertas_auditoria?.length > 0 && (
+              <div style={{ marginBottom: '16px', background: '#fee2e2', border: '1px solid #ef4444', borderRadius: '6px', padding: '10px 14px' }}>
+                <p style={{ fontWeight: 'bold', margin: '0 0 6px', fontSize: '11px', color: '#991b1b' }}>ALERTAS DE AUDITORÍA</p>
+                {valoracionDetail.alertas_auditoria.map((a, i) => (
+                  <p key={i} style={{ margin: '2px 0', fontSize: '10px', color: '#991b1b' }}>{a}</p>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        <div style={{ marginTop: '30px', borderTop: '2px solid #1e40af', paddingTop: '10px', fontSize: '9px', color: '#999', textAlign: 'center' }}>
+          Documento ID: {docIdForPdf || '—'} &nbsp;|&nbsp; WebCheck — Prevalidación Aduanera &nbsp;|&nbsp; {new Date().toISOString()}
+        </div>
+      </div>
     </div>
   );
 };

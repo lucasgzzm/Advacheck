@@ -3,18 +3,16 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import PanelPrincipal from './paginas/PanelPrincipal';
 import DetalleFactura from './paginas/DetalleFactura';
 import InicioSesion from './paginas/InicioSesion';
-import Perfil from './paginas/Perfil';
 
-import GestionClientes from './paginas/GestionClientes';
 import Historial from './paginas/Historial';
 import PanelAdmin from './paginas/PanelAdmin';
 import HistorialGlobal from './paginas/HistorialGlobal';
 import GestionUsuarios from './paginas/GestionUsuarios';
 import LogAuditoria from './paginas/LogAuditoria';
 import Layout from './componentes/Disposicion';
+import LimiteDeError from './componentes/interfaz/LimiteDeError';
 import { AuthProvider, useAuth } from './contexto/ContextoAuth';
 
-// Componente que define las rutas según autenticación y rol del usuario
 function RutasProtegidas() {
   const { user } = useAuth();
 
@@ -31,8 +29,8 @@ function RutasProtegidas() {
 
   return (
     <Layout>
+      <LimiteDeError>
       <Routes>
-        <Route path="/perfil" element={<Perfil />} />
         <Route path="/factura/:id/editar" element={<DetalleFactura />} />
         {esAdmin ? (
           <>
@@ -44,18 +42,17 @@ function RutasProtegidas() {
         ) : (
           <>
             <Route path="/" element={<PanelPrincipal />} />
-            <Route path="/clientes" element={<GestionClientes />} />
             <Route path="/historial" element={<Historial />} />
           </>
         )}
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </LimiteDeError>
     </Layout>
   );
 }
 
-// Componente raíz: provee autenticación y enrutamiento
 function App() {
   return (
     <AuthProvider>

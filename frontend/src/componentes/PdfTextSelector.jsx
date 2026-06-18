@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Scan, ZoomIn, ZoomOut, Loader2, AlertCircle } from 'lucide-react';
 
-// Modal para seleccionar texto de un PDF renderizado y aplicarlo a un campo del formulario
 export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, fieldLabel }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -19,7 +18,7 @@ export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, field
 
   useEffect(() => {
     let cancelled = false;
-    // Carga el PDF y renderiza la primera página
+    
     async function loadPdf() {
       try {
         const pdfjsLib = await import('pdfjs-dist');
@@ -45,7 +44,6 @@ export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, field
     return () => { cancelled = true; };
   }, [pdfUrl]);
 
-  // Renderiza una página del PDF en el canvas
   async function renderPage(doc, pageNumber, scaleVal, lib) {
     if (!doc) return;
     try {
@@ -73,7 +71,6 @@ export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, field
     }
   }
 
-  // Navega a la página anterior o siguiente
   const handleChangePage = async (delta) => {
     const newPage = pageNum + delta;
     if (newPage < 1 || newPage > totalPages) return;
@@ -85,7 +82,6 @@ export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, field
     }
   };
 
-  // Aplica zoom in/out al canvas del PDF
   const handleZoom = async (delta) => {
     const newScale = Math.max(0.5, Math.min(3, scale + delta));
     setScale(newScale);
@@ -94,7 +90,6 @@ export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, field
     }
   };
 
-  // Inicia la selección de texto al presionar el mouse
   const handleMouseDown = (e) => {
     if (!selectionMode) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -104,7 +99,6 @@ export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, field
     setSelectionBox({ x1: x, y1: y, x2: x, y2: y });
   };
 
-  // Actualiza el rectángulo de selección mientras se arrastra el mouse
   const handleMouseMove = (e) => {
     if (!isSelecting || !selectionMode) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -113,7 +107,6 @@ export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, field
     setSelectionBox(prev => ({ ...prev, x2: x, y2: y }));
   };
 
-  // Finaliza la selección y extrae el texto del área seleccionada
   const handleMouseUp = () => {
     if (!isSelecting || !selectionMode) return;
     setIsSelecting(false);
@@ -149,7 +142,6 @@ export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, field
     }
   };
 
-  // Confirma la selección y envía el texto extraído al padre
   const handleConfirmSelection = () => {
     if (selectedText && selectedText !== 'No se detectó texto en esta región.') {
       onTextSelected(selectedText.trim());
@@ -169,7 +161,7 @@ export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, field
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         boxShadow: '0 25px 50px rgba(0,0,0,0.3)',
       }}>
-        {/* Header */}
+        
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           padding: '16px 20px', borderBottom: '1px solid var(--card-border)',
@@ -190,7 +182,6 @@ export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, field
           </button>
         </div>
 
-        {/* Toolbar */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: '12px',
           padding: '10px 20px', borderBottom: '1px solid var(--card-border)',
@@ -252,7 +243,6 @@ export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, field
           </button>
         </div>
 
-        {/* PDF Content */}
         <div
           ref={containerRef}
           style={{
@@ -290,7 +280,6 @@ export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, field
                 style={{ display: 'block', maxWidth: '100%', height: 'auto' }}
               />
 
-              {/* Selection overlay */}
               {selectionBox && selectionMode && (
                 <div style={{
                   position: 'absolute',
@@ -308,7 +297,6 @@ export default function PdfTextSelector({ pdfUrl, onClose, onTextSelected, field
           )}
         </div>
 
-        {/* Selected text preview and confirm */}
         {selectedText && (
           <div style={{
             padding: '14px 20px', borderTop: '2px solid #a78bfa',

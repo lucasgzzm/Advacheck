@@ -8,7 +8,6 @@ const TIPO_CONFIG = {
   correccion: { label: 'Corrección', color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', icon: FileEdit },
 };
 
-// Panel de observaciones con formulario para agregar notas, alertas o correcciones
 const ObservacionesPanel = ({ documentoId }) => {
   const [observaciones, setObservaciones] = useState([]);
   const [contenido, setContenido] = useState('');
@@ -16,7 +15,6 @@ const ObservacionesPanel = ({ documentoId }) => {
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
 
-  // Carga las observaciones del documento desde la API
   const fetchObservaciones = async () => {
     try {
       setLoading(true);
@@ -33,7 +31,6 @@ const ObservacionesPanel = ({ documentoId }) => {
     if (documentoId) fetchObservaciones();
   }, [documentoId]);
 
-  // Envía una nueva observación al servidor
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!contenido.trim()) return;

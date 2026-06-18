@@ -7,37 +7,60 @@ from azure.ai.documentintelligence.models import AnalyzeResult
 
 logger = logging.getLogger(__name__)
 
-
 class OCRService:
-    """Reconocimiento optico de caracteres usando Azure Document Intelligence.
-    Si Azure no esta configurado, usa pdfplumber (local) o datos simulados para desarrollo.
-    """
 
     @staticmethod
     def _es_mock() -> bool:
-        """Detecta si Azure OCR esta configurado o si debemos usar modo simulado."""
         endpoint = os.getenv("AZURE_OCR_ENDPOINT")
         key = os.getenv("AZURE_OCR_KEY")
         return not endpoint or not key or key.strip() == "" or "tu_clave" in key.lower()
 
     @staticmethod
+    def is_mock_mode() -> bool:
+        return OCRService._es_mock()
+
+    @staticmethod
     async def extract_text(file_bytes: bytes) -> str:
-        """Intenta extraer el texto primero con pdfplumber (local, sin costo).
-        Si no alcanza, usa Azure OCR. Si Azure no esta configurado, devuelve datos de prueba.
-        """
         texto = await OCRService._extraer_local(file_bytes)
         if texto:
             return texto
 
         if OCRService._es_mock():
-            logger.warning("Azure OCR no configurado — usando datos simulados. NO USAR EN PRODUCCION.")
+            logger.error("MODO MOCK OCR ACTIVO — Azure no configurado. Los resultados NO son reales. Configura AZURE_OCR_KEY en .env")
             return OCRService._get_mock_invoice_text()
 
         return await OCRService._extraer_con_azure(file_bytes)
 
     @staticmethod
+    async def extract_text_per_page(file_bytes: bytes) -> list[dict]:
+        pages = []
+        try:
+            import pdfplumber
+            import io
+            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+                for i, p in enumerate(pdf.pages, 1):
+                    txt = p.extract_text()
+                    if txt and txt.strip():
+                        pages.append({"page_num": i, "text": txt.strip()})
+            if pages:
+                logger.info(f"Texto extraido por pagina ({len(pages)} paginas).")
+                return pages
+        except Exception as e:
+            logger.debug(f"Extraccion por pagina fallo: {e}")
+
+        full_text = await OCRService.extract_text(file_bytes)
+        return [{"page_num": 1, "text": full_text}] if full_text.strip() else []
+
+    @staticmethod
+    def build_page_marked_text(pages: list[dict]) -> str:
+        partes = []
+        for p in pages:
+            partes.append(f"=== PAGE {p['page_num']} ===")
+            partes.append(p["text"])
+        return "\n".join(partes)
+
+    @staticmethod
     async def _extraer_local(file_bytes: bytes) -> str:
-        """Extrae texto del PDF con pdfplumber (sin conexion a internet)."""
         try:
             import pdfplumber
             import io
@@ -58,27 +81,21 @@ class OCRService:
 
     @staticmethod
     async def _extraer_con_azure(file_bytes: bytes) -> str:
-        """Usa Azure Document Intelligence (prebuilt-read) para extraer texto."""
         endpoint = os.getenv("AZURE_OCR_ENDPOINT", "")
         key = os.getenv("AZURE_OCR_KEY", "")
-        try:
-            client = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
-            poller = await asyncio.to_thread(
-                client.begin_analyze_document,
-                "prebuilt-read",
-                body=file_bytes,
-                content_type="application/pdf",
-            )
-            result: AnalyzeResult = await asyncio.to_thread(poller.result)
-            logger.info("Extraccion OCR completada con Azure.")
-            return result.content
-        except Exception as e:
-            logger.error(f"Azure OCR fallo ({e}) — usando fallback simulado.")
-            return OCRService._get_mock_invoice_text()
+        client = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
+        poller = await asyncio.to_thread(
+            client.begin_analyze_document,
+            "prebuilt-read",
+            body=file_bytes,
+            content_type="application/pdf",
+        )
+        result: AnalyzeResult = await asyncio.to_thread(poller.result)
+        logger.info("Extraccion OCR completada con Azure.")
+        return result.content
 
     @staticmethod
     def _get_mock_invoice_text() -> str:
-        """Factura de prueba para desarrollo cuando no hay Azure OCR configurado."""
         return """
         COMMERCIAL INVOICE
         Invoice No: INV-2026-9874
@@ -121,6 +138,5 @@ class OCRService:
         Subtotal Items: 15400.00 USD
         Freight Charge: 850.00 USD
         Insurance Premium: 150.00 USD
-        Other Handling Fees: 100.00 USD
-        TOTAL INVOICE CIF: 16500.00 USD
+        TOTAL INVOICE CIF: 16400.00 USD
         """

@@ -1,0 +1,208 @@
+.container {
+  height: 100vh;
+  width: 100%;
+  background: var(--login-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  font-family: 'Inter', sans-serif;
+}
+
+.card {
+  width: 80%;
+  max-width: 1100px;
+  display: flex;
+  height: 600px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--login-border);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
+}
+
+.leftPanel {
+  width: 100%;
+  flex: 1 1 50%;
+  padding: 0 4rem;
+  position: relative;
+  background: var(--login-bg);
+}
+
+.formWrapper {
+  position: relative;
+  z-index: 10;
+  height: 100%;
+}
+
+.form {
+  text-align: center;
+  padding: 40px 0;
+  display: grid;
+  gap: 8px;
+  height: 100%;
+  align-content: center;
+}
+
+.logoWrapper {
+  margin-bottom: 8px;
+}
+
+.logoImg {
+  height: 48px;
+}
+
+.formHeader {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.title {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: var(--login-heading);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  font-size: 0.875rem;
+  color: var(--login-text-secondary);
+}
+
+.errorBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #ef4444;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.inputGroup {
+  display: grid;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.inputWrapper {
+  min-width: 200px;
+  position: relative;
+}
+
+.inputInner {
+  position: relative;
+  width: 100%;
+}
+
+.input {
+  position: relative;
+  z-index: 10;
+  border: 2px solid var(--login-border);
+  height: 52px;
+  width: 100%;
+  border-radius: 6px;
+  background: var(--login-surface);
+  padding: 0 16px;
+  font-weight: 400;
+  outline: none;
+  color: var(--login-text-primary);
+  font-size: 0.95rem;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.inputConIcono {
+  padding: 0 44px 0 16px;
+}
+
+.inputIcon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+}
+
+.eyeButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--login-text-secondary);
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rememberRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.rememberLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--login-text-secondary);
+}
+
+.checkbox {
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+.forgotLink {
+  font-size: 0.85rem;
+  color: var(--login-text-primary);
+  text-decoration: none;
+  font-weight: 300;
+}
+
+.submitWrapper {
+  margin-top: 8px;
+  text-align: center;
+}
+
+.submitBtn {
+  padding: 10px 32px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--login-border);
+  text-align: center;
+}
+
+.securityBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--login-text-secondary);
+  font-size: 0.8rem;
+}
+
+.rightPanel {
+  display: none;
+  flex: 1 1 50%;
+  overflow: hidden;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 1;
+}

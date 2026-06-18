@@ -4,16 +4,11 @@ import AsistenteClasificacionArancelaria from './AsistenteClasificacionArancelar
 
 import { cssVar as v } from '../libreria/utilidades';
 
-/* Componente interno que renderiza una tarjeta individual de item con campos editables y detección RRNA */
 function ItemCard({ item, idx, bloqueado, camposMod, classificationData, rrnaDocuments, onCorrection, onAiClassification, onAplicarPartida, onRrnaUpload, onRrnaRemove, sinAcordeon }) {
-  /* Determina si el item requiere registro sanitario RRNA según la IA o palabras clave en la descripción */
-  const rrnaRequerida = (classificationData[item.id]?.result?.rrna_requerida) ||
-    ['medical','surgical','quimico','chemical','toy','juguete','dispositivo','syringe','acid','jeringa']
-      .some(kw => item.descripcion.toLowerCase().includes(kw));
+  const rrnaRequerida = classificationData[item.id]?.result?.rrna_requerida === true;
 
   return (
-    /* Cuando está dentro de una pestaña (sinAcordeon), usa un estilo de fila con borde superior;
-       de lo contrario, usa una tarjeta con borde completo y fondo */
+    
     <div key={item.id} style={sinAcordeon ? {
       padding: '10px 0',
       borderTop: `1px solid ${v('card-border')}`,
@@ -23,13 +18,13 @@ function ItemCard({ item, idx, bloqueado, camposMod, classificationData, rrnaDoc
       border: item.inconsistente ? `1px solid ${v('red')}40` : `1px solid ${v('card-border')}`,
       background: item.inconsistente ? 'rgba(239,68,68,0.04)' : 'rgba(255,255,255,0.5)',
     }}>
-      {/* Encabezado del item con número, descripción e indicador de inconsistencia */}
+      
       <div style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: '12px', color: v('text-main'), display: 'flex', alignItems: 'center', gap: '8px' }}>
         #{idx + 1}
         {item.inconsistente && <XCircle size={12} color={v('red')} />}
         <span style={{ fontWeight: 400, color: v('text-muted') }}>{item.descripcion}</span>
       </div>
-      {/* Campos editables: cantidad, precio unitario, partida sugerida y corrección manual */}
+      
       <div className="grid-2" style={{ gap: '12px', marginBottom: '12px' }}>
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -58,6 +53,19 @@ function ItemCard({ item, idx, bloqueado, camposMod, classificationData, rrnaDoc
           />
         </div>
         <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            Peso Neto (kg)
+          </label>
+          <input className="form-input"
+            style={{
+              ...(camposMod[`item_${item.id}_peso_neto_kg`] ? { borderColor: v('primary'), boxShadow: `0 0 0 1px ${v('primary')}` } : {}),
+              ...(bloqueado ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+            }}
+            type="number" step="0.01" value={item.peso_neto_kg || ''} disabled={bloqueado}
+            onChange={(e) => { if (!bloqueado) onCorrection(item.id, 'peso_neto_kg', parseFloat(e.target.value) || 0); }}
+          />
+        </div>
+        <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label" style={{ color: v('primary') }}>Partida Sugerida</label>
           <input className="form-input" type="text" value={item.partida_sugerida} disabled
             style={{ opacity: 0.6, borderColor: `${v('primary')}40`, color: v('primary') }}
@@ -76,7 +84,7 @@ function ItemCard({ item, idx, bloqueado, camposMod, classificationData, rrnaDoc
           />
         </div>
       </div>
-      {/* Asistente de clasificación arancelaria por IA */}
+      
       <AsistenteClasificacionArancelaria
         item={item} clasificacionIA={classificationData[item.id]}
         clasificando={classificationData[item.id]?.loading}
@@ -85,7 +93,7 @@ function ItemCard({ item, idx, bloqueado, camposMod, classificationData, rrnaDoc
         onAplicarPartida={onAplicarPartida}
         onAplicarCorreccion={onAplicarPartida}
       />
-      {/* Alerta de registro sanitario RRNA con opción de cargar permiso */}
+      
       {rrnaRequerida && (
         <div style={{ marginTop: '12px', padding: '14px', borderRadius: '10px', background: 'rgba(239,68,68,0.06)', border: '1px dashed rgba(239,68,68,0.3)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: v('red'), fontWeight: 700, fontSize: '0.75rem', marginBottom: '8px' }}>
@@ -121,7 +129,6 @@ function ItemCard({ item, idx, bloqueado, camposMod, classificationData, rrnaDoc
   );
 }
 
-/* Tabla de items con modo acordeón o modo compacto (sinAcordeon) para usar dentro de pestañas */
 export default function ItemsTable({
   items, bloqueado, camposMod, open,
   onToggle, classificationData, rrnaDocuments,
@@ -129,7 +136,7 @@ export default function ItemsTable({
   onRrnaUpload, onRrnaRemove,
   sinAcordeon,
 }) {
-  /* Contenido compartido: lista de items o mensaje vacío */
+  
   const content = items.length === 0 ? (
     <p style={{ color: v('text-muted'), fontSize: '0.85rem' }}>No hay ítems para mostrar.</p>
   ) : (
@@ -145,10 +152,8 @@ export default function ItemsTable({
     </div>
   );
 
-  /* En modo sinAcordeon (dentro de pestañas), retorna solo el contenido sin panel contenedor */
   if (sinAcordeon) return content;
 
-  /* En modo acordeón, envuelve en un glass-panel con encabezado expandible */
   return (
     <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
       <div onClick={onToggle}

@@ -39,6 +39,7 @@ export const AuthProvider = ({ children }) => {
       const storage = remember ? localStorage : sessionStorage;
 
       storage.setItem('token', data.access_token);
+      storage.setItem('refresh_token', data.refresh_token);
       storage.setItem('user', JSON.stringify({
         name: data.user_name,
         role: data.user_role,
@@ -59,7 +60,7 @@ export const AuthProvider = ({ children }) => {
         await peticionPost('/api/auth/logout');
       }
     } catch (e) {
-      // Silencioso
+      
     } finally {
       localStorage.clear();
       sessionStorage.clear();

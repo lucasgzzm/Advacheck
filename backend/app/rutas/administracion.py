@@ -1,15 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, update, delete
+from sqlalchemy import select, func, desc, update, delete, and_
 from sqlalchemy.orm import selectinload
 from typing import List
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from .. import esquemas, modelos
-from ..services.servicio_auditoria import registrar_auditoria
+from ..servicios.servicio_auditoria import registrar_auditoria
 from ..base_datos import get_db
 from ..seguridad import generar_hash
+from ..configuracion import GEMINI_API_KEY
+from ..servicios.servicio_texto import AITextService
 from ..dependencias import (
     obtener_admin_actual,
     limpiar_sesiones_expiradas,
@@ -19,8 +21,6 @@ from ..dependencias import (
 
 router = APIRouter(prefix="/api/admin", tags=["Administracion"])
 
-# ---- Reglas por defecto con las que se siembra la base de datos ----
-# Estas 5 reglas cubren los controles basicos que toda operacion aduanera deberia pasar.
 REGLAS_POR_DEFECTO = [
     {
         "nombre_regla": "IncotermValidationRule",
@@ -54,9 +54,7 @@ REGLAS_POR_DEFECTO = [
     },
 ]
 
-
 async def _sembrar_reglas_si_vacio(db: AsyncSession):
-    """Si la tabla de reglas esta vacia (base nueva), inserta las 5 reglas por defecto."""
     resultado = await db.execute(select(func.count(modelos.ReglaConfiguracion.id)))
     total = resultado.scalar() or 0
     if total > 0:
@@ -72,21 +70,19 @@ async def _sembrar_reglas_si_vacio(db: AsyncSession):
         ))
     await db.commit()
 
-
 @router.get("/metrics")
 async def obtener_metricas_globales(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
-    """Dashboard del admin: total de operaciones, distribucion de riesgo, analistas activos."""
-    limpiar_sesiones_expiradas()
+    await limpiar_sesiones_expiradas()
 
     total = (await db.execute(select(func.count(modelos.DocumentoProcesado.id)))).scalar() or 0
 
     riesgo_alto = (
         await db.execute(
             select(func.count(modelos.DocumentoProcesado.id)).filter(
-                modelos.DocumentoProcesado.riesgo == "alto"
+                func.lower(modelos.DocumentoProcesado.riesgo) == "alto"
             )
         )
     ).scalar() or 0
@@ -94,7 +90,7 @@ async def obtener_metricas_globales(
     riesgo_medio = (
         await db.execute(
             select(func.count(modelos.DocumentoProcesado.id)).filter(
-                modelos.DocumentoProcesado.riesgo == "medio"
+                func.lower(modelos.DocumentoProcesado.riesgo) == "medio"
             )
         )
     ).scalar() or 0
@@ -102,7 +98,7 @@ async def obtener_metricas_globales(
     riesgo_bajo = (
         await db.execute(
             select(func.count(modelos.DocumentoProcesado.id)).filter(
-                modelos.DocumentoProcesado.riesgo == "bajo"
+                func.lower(modelos.DocumentoProcesado.riesgo) == "bajo"
             )
         )
     ).scalar() or 0
@@ -124,13 +120,139 @@ async def obtener_metricas_globales(
         "salud_ocr": 98.5,
     }
 
+@router.get("/health")
+async def health_check(
+    db: AsyncSession = Depends(get_db),
+    admin: modelos.Usuario = Depends(obtener_admin_actual),
+):
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    gemini_configurado = bool(GEMINI_API_KEY)
+    gemini_estado = await AITextService.obtener_estado() if gemini_configurado else {}
+    gemini_online = gemini_estado.get("online", False)
+    gemini_rate_limited = gemini_estado.get("rate_limited", False)
+    gemini_retry_after = gemini_estado.get("retry_after")
+    gemini_motivo = gemini_estado.get("motivo")
+
+    hace_7_dias = ahora - timedelta(days=7)
+
+    total_docs = await db.scalar(select(func.count(modelos.DocumentoProcesado.id)))
+    docs_7d = await db.scalar(
+        select(func.count(modelos.DocumentoProcesado.id)).where(
+            modelos.DocumentoProcesado.fecha_analisis >= hace_7_dias
+        )
+    )
+
+    docs_en_cola = await db.scalar(
+        select(func.count(modelos.DocumentoProcesado.id)).where(
+            and_(
+                modelos.DocumentoProcesado.estado == "En Revisión",
+                modelos.DocumentoProcesado.bloqueado == False,
+            )
+        )
+    )
+
+    docs_con_error = await db.scalar(
+        select(func.count(modelos.DocumentoProcesado.id)).where(
+            and_(
+                modelos.DocumentoProcesado.fecha_analisis >= hace_7_dias,
+                modelos.DocumentoProcesado.riesgo == "Alto",
+                modelos.DocumentoProcesado.estado != "Archivado",
+            )
+        )
+    )
+
+    total_7d = docs_7d or 0
+    errores_7d = docs_con_error or 0
+    salud_ocr = round((1 - (errores_7d / max(total_7d, 1))) * 100, 1)
+
+    return {
+        "gemini": {
+            "configurado": gemini_configurado,
+            "online": gemini_online,
+            "rate_limited": gemini_rate_limited,
+            "retry_after": gemini_retry_after,
+            "motivo": gemini_motivo,
+        },
+        "db": {
+            "conectado": True,
+            "documentos_totales": total_docs or 0,
+        },
+        "ocr": {
+            "salud_porcentaje": salud_ocr,
+            "documentos_7d": total_7d,
+            "errores_7d": errores_7d,
+        },
+        "cola": {
+            "pendientes": docs_en_cola or 0,
+        },
+        "timestamp": ahora.isoformat(),
+    }
+
+@router.get("/common-errors")
+async def errores_comunes(
+    db: AsyncSession = Depends(get_db),
+    admin: modelos.Usuario = Depends(obtener_admin_actual),
+):
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    hace_30d = ahora - timedelta(days=30)
+
+    # Obtenemos todos los resultados de pre-validación de los últimos 30 días
+    resultado_query = await db.execute(
+        select(modelos.DocumentoProcesado.prevalidacion_resultado).where(
+            and_(
+                modelos.DocumentoProcesado.fecha_analisis >= hace_30d,
+                modelos.DocumentoProcesado.prevalidacion_resultado.isnot(None)
+            )
+        )
+    )
+    resultados = resultado_query.scalars().all()
+
+    # Mapeo de etapas a nombres amigables y colores
+    MAPEO_ERRORES = {
+        "Validacion Documental y Formal": {"tipo": "Datos Incompletos (Formato)", "color": "#f97316"},
+        "Validacion Comercial CIF + SQUARE": {"tipo": "Inconsistencia Comercial / CIF", "color": "#ef4444"},
+        "Validacion Normativa (Vistos Buenos)": {"tipo": "Permisos Faltantes", "color": "#8b5cf6"},
+        "Validacion de Pesos, Bultos y Cantidades": {"tipo": "Diferencia de Pesos/Bultos", "color": "#3b82f6"},
+        "Validacion de Valoracion y Precios": {"tipo": "Alerta de Valoración", "color": "#ec4899"},
+        "Validacion de Plazos y Vigencias": {"tipo": "Plazos Excedidos", "color": "#f59e0b"}
+    }
+
+    conteo_errores = {}
+
+    for res in resultados:
+        if not isinstance(res, dict) or "etapas" not in res:
+            continue
+            
+        for etapa in res.get("etapas", []):
+            if etapa.get("estado") in ["FAIL", "WARNING"]:
+                titulo_original = etapa.get("titulo", "Error Desconocido")
+                if titulo_original in MAPEO_ERRORES:
+                    if titulo_original not in conteo_errores:
+                        conteo_errores[titulo_original] = 0
+                    conteo_errores[titulo_original] += 1
+
+    # Formatear la lista de resultados para el frontend
+    lista_errores = []
+    for titulo_original, cantidad in conteo_errores.items():
+        info = MAPEO_ERRORES[titulo_original]
+        lista_errores.append({
+            "tipo": info["tipo"],
+            "cantidad": cantidad,
+            "color": info["color"]
+        })
+
+    # Ordenar de mayor a menor y tomar el Top 4
+    lista_errores.sort(key=lambda x: x["cantidad"], reverse=True)
+    return lista_errores[:4]
 
 @router.get("/documents", response_model=List[esquemas.DocumentoProcesadoResponse])
 async def obtener_todos_documentos(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
 ):
-    """Lista todos los documentos del sistema, con el nombre del analista que lo subio."""
     resultado = await db.execute(
         select(modelos.DocumentoProcesado)
         .options(
@@ -138,9 +260,10 @@ async def obtener_todos_documentos(
             selectinload(modelos.DocumentoProcesado.usuario_rel),
         )
         .order_by(desc(modelos.DocumentoProcesado.fecha_analisis))
+        .offset(skip)
+        .limit(limit)
     )
     docs = resultado.scalars().all()
-    # Convierte cada documento a dict y agrega el nombre del usuario
     respuesta = []
     for doc in docs:
         datos = esquemas.DocumentoProcesadoResponse.model_validate(doc).model_dump()
@@ -148,14 +271,12 @@ async def obtener_todos_documentos(
         respuesta.append(datos)
     return respuesta
 
-
 @router.get("/users", response_model=List[esquemas.UserResponse])
 async def obtener_todos_usuarios(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
-    """Lista todos los usuarios del sistema, con su rol y estado de conexion."""
-    limpiar_sesiones_expiradas()
+    await limpiar_sesiones_expiradas()
 
     resultado = await db.execute(
         select(
@@ -180,14 +301,12 @@ async def obtener_todos_usuarios(
         for f in filas
     ]
 
-
 @router.patch("/users/{usuario_id}/status")
 async def cambiar_estado_usuario(
     usuario_id: int,
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
-    """Bloquea o desbloquea un usuario. El admin no puede bloquearse a si mismo."""
     resultado = await db.execute(
         select(modelos.Usuario).filter(modelos.Usuario.id == usuario_id)
     )
@@ -211,16 +330,13 @@ async def cambiar_estado_usuario(
         "mensaje": f"Estado del usuario {usuario.nombre} actualizado a {nuevo_estado}"
     }
 
-
 @router.get("/roles")
 async def obtener_roles(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
-    """Lista los roles disponibles en el sistema."""
     resultado = await db.execute(select(modelos.Rol))
     return resultado.scalars().all()
-
 
 @router.patch("/users/{usuario_id}/role")
 async def cambiar_rol_usuario(
@@ -229,7 +345,6 @@ async def cambiar_rol_usuario(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
-    """Cambia el rol de un usuario. El admin no puede cambiarse el rol a si mismo."""
     resultado = await db.execute(
         select(modelos.Usuario).filter(modelos.Usuario.id == usuario_id)
     )
@@ -256,14 +371,12 @@ async def cambiar_rol_usuario(
 
     return {"mensaje": f"Rol de {usuario.nombre} actualizado a {rol.nombre}"}
 
-
 @router.delete("/users/{usuario_id}")
 async def eliminar_usuario(
     usuario_id: int,
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
-    """Elimina un usuario del sistema. Antes desvincula sus documentos, notificaciones, observaciones y auditoria."""
     resultado = await db.execute(
         select(modelos.Usuario).filter(modelos.Usuario.id == usuario_id)
     )
@@ -288,12 +401,6 @@ async def eliminar_usuario(
         .values(usuario_id=None)
     )
     await db.execute(
-        delete(modelos.Notificacion).filter(
-            (modelos.Notificacion.usuario_destino_id == usuario_id)
-            | (modelos.Notificacion.usuario_origen_id == usuario_id)
-        )
-    )
-    await db.execute(
         delete(modelos.Observacion).filter(
             modelos.Observacion.usuario_id == usuario_id
         )
@@ -315,14 +422,12 @@ async def eliminar_usuario(
         "mensaje": f"Usuario {usuario.nombre} y todas sus dependencias asociadas eliminados con exito."
     }
 
-
 @router.post("/users", status_code=status.HTTP_201_CREATED)
 async def crear_usuario(
     body: esquemas.AdminCreateUserRequest,
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
-    """El admin crea un usuario nuevo. Valida que el email no exista y que el rol sea valido."""
     resultado = await db.execute(
         select(modelos.Usuario).filter(modelos.Usuario.email == body.email)
     )
@@ -347,7 +452,7 @@ async def crear_usuario(
         rol_id=body.rol_id,
     )
     db.add(nuevo_usuario)
-    await db.commit()
+    await db.flush()
     await db.refresh(nuevo_usuario)
 
     await registrar_auditoria(db, admin.id, "Creacion de Usuario", f"Admin '{admin.nombre}' creo el usuario '{nuevo_usuario.nombre}' ({nuevo_usuario.email}) con rol '{rol.nombre}'.")
@@ -358,13 +463,11 @@ async def crear_usuario(
         "usuario_id": nuevo_usuario.id,
     }
 
-
 @router.get("/auditoria")
 async def obtener_auditoria(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
-    """Registro de auditoria completo: todas las acciones de todos los usuarios."""
     resultado = await db.execute(
         select(
             modelos.Auditoria.id,
@@ -391,17 +494,11 @@ async def obtener_auditoria(
         for f in filas
     ]
 
-
-# ---- Endpoints de Configuracion del Motor de Reglas ----
-# El admin puede activar/desactivar reglas, cambiar su severidad y ajustar los umbrales.
-
-
 @router.get("/rules", response_model=List[esquemas.ReglaConfiguracionResponse])
 async def obtener_reglas(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
-    """Lista las reglas del motor de prevalidacion. Si la tabla esta vacia, las siembra automaticamente."""
     await _sembrar_reglas_si_vacio(db)
     resultado = await db.execute(
         select(
@@ -430,13 +527,12 @@ async def obtener_reglas(
             "descripcion": f["descripcion"],
             "activa": f["activa"],
             "severidad": f["severidad"],
-            "parametros": json.loads(f["parametros"]) if f["parametros"] else None,
+            "parametros": json.loads(f["parametros"]) if f.get("parametros") else None,
             "ultima_modificacion": f["ultima_modificacion"],
             "modificado_por": f["modificado_por"],
         }
         for f in filas
     ]
-
 
 @router.put("/rules/{rule_id}/toggle")
 async def toggle_regla(
@@ -445,7 +541,6 @@ async def toggle_regla(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
-    """Prende o apaga una regla del motor."""
     resultado = await db.execute(
         select(modelos.ReglaConfiguracion).filter(modelos.ReglaConfiguracion.id == rule_id)
     )
@@ -454,7 +549,7 @@ async def toggle_regla(
         raise HTTPException(status_code=404, detail="Regla no encontrada")
 
     regla.activa = body.activa
-    regla.ultima_modificacion = datetime.utcnow()
+    regla.ultima_modificacion = datetime.now(timezone.utc).replace(tzinfo=None)
     regla.modificado_por_id = admin.id
 
     await registrar_auditoria(db, admin.id, "Toggle Regla", (
@@ -464,7 +559,6 @@ async def toggle_regla(
     await db.commit()
     return {"mensaje": f"Regla {'activada' if body.activa else 'desactivada'}", "activa": regla.activa}
 
-
 @router.put("/rules/{rule_id}/severity")
 async def cambiar_severidad_regla(
     rule_id: int,
@@ -472,7 +566,6 @@ async def cambiar_severidad_regla(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
-    """Cambia la severidad de una regla: IGNORAR, ADVERTENCIA o BLOQUEANTE."""
     resultado = await db.execute(
         select(modelos.ReglaConfiguracion).filter(modelos.ReglaConfiguracion.id == rule_id)
     )
@@ -482,7 +575,7 @@ async def cambiar_severidad_regla(
 
     severidad_anterior = regla.severidad
     regla.severidad = body.severidad
-    regla.ultima_modificacion = datetime.utcnow()
+    regla.ultima_modificacion = datetime.now(timezone.utc).replace(tzinfo=None)
     regla.modificado_por_id = admin.id
 
     await registrar_auditoria(db, admin.id, "Cambio de Severidad de Regla", (
@@ -495,7 +588,6 @@ async def cambiar_severidad_regla(
         "severidad": regla.severidad,
     }
 
-
 @router.put("/rules/{rule_id}/threshold")
 async def cambiar_umbral_regla(
     rule_id: int,
@@ -503,7 +595,6 @@ async def cambiar_umbral_regla(
     db: AsyncSession = Depends(get_db),
     admin: modelos.Usuario = Depends(obtener_admin_actual),
 ):
-    """Ajusta los parametros/umbrales de una regla (ej: tolerancia en USD, umbral de similitud)."""
     resultado = await db.execute(
         select(modelos.ReglaConfiguracion).filter(modelos.ReglaConfiguracion.id == rule_id)
     )
@@ -513,7 +604,7 @@ async def cambiar_umbral_regla(
 
     parametros_previos = regla.parametros
     regla.parametros = json.dumps(body.parametros)
-    regla.ultima_modificacion = datetime.utcnow()
+    regla.ultima_modificacion = datetime.now(timezone.utc).replace(tzinfo=None)
     regla.modificado_por_id = admin.id
 
     await registrar_auditoria(db, admin.id, "Cambio de Umbral de Regla", (

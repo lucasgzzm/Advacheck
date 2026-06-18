@@ -1,0 +1,16 @@
+.contenedor {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--bg-color);
+  transition: background-color 0.3s;
+}
+
+.main {
+  flex: 1;
+  margin-left: 260px;
+  padding: 32px 40px;
+  width: calc(100% - 260px);
+  height: 100vh;
+  overflow-y: auto;
+}

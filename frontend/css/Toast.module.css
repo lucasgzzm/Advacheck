@@ -1,0 +1,47 @@
+.contenedor {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 9999;
+  max-width: 420px;
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: #1e1e2e;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: slideInRight 0.3s ease-out;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.iconCircle {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.mensaje {
+  flex: 1;
+  color: #e2e8f0;
+  font-weight: 500;
+}
+
+.btnCerrar {
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 2px;
+  line-height: 1;
+  flex-shrink: 0;
+}

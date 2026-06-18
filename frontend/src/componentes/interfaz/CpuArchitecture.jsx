@@ -19,7 +19,7 @@ const CpuArchitecture = ({
       height={height}
       viewBox="0 0 200 100"
     >
-      {/* Paths */}
+      
       <g
         stroke="currentColor"
         fill="none"
@@ -28,35 +28,35 @@ const CpuArchitecture = ({
         pathLength="100"
         markerStart="url(#cpu-circle-marker)"
       >
-        {/* 1st */}
+        
         <path
           strokeDasharray="100 100"
           pathLength="100"
           d="M 10 20 h 79.5 q 5 0 5 5 v 30"
         />
-        {/* 2nd */}
+        
         <path
           strokeDasharray="100 100"
           pathLength="100"
           d="M 180 10 h -69.7 q -5 0 -5 5 v 30"
         />
-        {/* 3rd */}
+        
         <path d="M 130 20 v 21.8 q 0 5 -5 5 h -10" />
-        {/* 4th */}
+        
         <path d="M 170 80 v -21.8 q 0 -5 -5 -5 h -50" />
-        {/* 5th */}
+        
         <path
           strokeDasharray="100 100"
           pathLength="100"
           d="M 135 65 h 15 q 5 0 5 5 v 10 q 0 5 -5 5 h -39.8 q -5 0 -5 -5 v -20"
         />
-        {/* 6th */}
+        
         <path d="M 94.8 95 v -36" />
-        {/* 7th */}
+        
         <path d="M 88 88 v -15 q 0 -5 -5 -5 h -10 q -5 0 -5 -5 v -5 q 0 -5 5 -5 h 14" />
-        {/* 8th */}
+        
         <path d="M 30 30 h 25 q 5 0 5 5 v 6.5 q 0 5 5 5 h 20" />
-        {/* Animation For Path Starting */}
+        
         {animateLines && (
           <animate
             attributeName="stroke-dashoffset"
@@ -71,7 +71,6 @@ const CpuArchitecture = ({
         )}
       </g>
 
-      {/* 1. Blue Light */}
       <g mask="url(#cpu-mask-1)">
         <circle
           className="cpu-architecture cpu-line-1"
@@ -81,7 +80,7 @@ const CpuArchitecture = ({
           fill="url(#cpu-blue-grad)"
         />
       </g>
-      {/* 2. Yellow Light */}
+      
       <g mask="url(#cpu-mask-2)">
         <circle
           className="cpu-architecture cpu-line-2"
@@ -91,7 +90,7 @@ const CpuArchitecture = ({
           fill="url(#cpu-yellow-grad)"
         />
       </g>
-      {/* 3. Pinkish Light */}
+      
       <g mask="url(#cpu-mask-3)">
         <circle
           className="cpu-architecture cpu-line-3"
@@ -101,7 +100,7 @@ const CpuArchitecture = ({
           fill="url(#cpu-pinkish-grad)"
         />
       </g>
-      {/* 4. White Light */}
+      
       <g mask="url(#cpu-mask-4)">
         <circle
           className="cpu-architecture cpu-line-4"
@@ -111,7 +110,7 @@ const CpuArchitecture = ({
           fill="url(#cpu-white-grad)"
         />
       </g>
-      {/* 5. Green Light */}
+      
       <g mask="url(#cpu-mask-5)">
         <circle
           className="cpu-architecture cpu-line-5"
@@ -121,7 +120,7 @@ const CpuArchitecture = ({
           fill="url(#cpu-green-grad)"
         />
       </g>
-      {/* 6. Orange Light */}
+      
       <g mask="url(#cpu-mask-6)">
         <circle
           className="cpu-architecture cpu-line-6"
@@ -131,7 +130,7 @@ const CpuArchitecture = ({
           fill="url(#cpu-orange-grad)"
         />
       </g>
-      {/* 7. Cyan Light */}
+      
       <g mask="url(#cpu-mask-7)">
         <circle
           className="cpu-architecture cpu-line-7"
@@ -141,7 +140,7 @@ const CpuArchitecture = ({
           fill="url(#cpu-cyan-grad)"
         />
       </g>
-      {/* 8. Rose Light */}
+      
       <g mask="url(#cpu-mask-8)">
         <circle
           className="cpu-architecture cpu-line-8"
@@ -151,9 +150,9 @@ const CpuArchitecture = ({
           fill="url(#cpu-rose-grad)"
         />
       </g>
-      {/* CPU Box */}
+      
       <g>
-        {/* Cpu connections */}
+        
         {showCpuConnections && (
           <g fill="url(#cpu-connection-gradient)">
             <rect x="93" y="37" width="2.5" height="5" rx="0.7" />
@@ -208,7 +207,7 @@ const CpuArchitecture = ({
             />
           </g>
         )}
-        {/* Main CPU Rectangle */}
+        
         <rect
           x="85"
           y="40"
@@ -218,7 +217,7 @@ const CpuArchitecture = ({
           fill="#181818"
           filter="url(#cpu-light-shadow)"
         />
-        {/* CPU Text */}
+        
         <text
           x="100"
           y="51"
@@ -232,7 +231,7 @@ const CpuArchitecture = ({
           {text}
         </text>
       </g>
-      {/* Masks */}
+      
       <defs>
         <mask id="cpu-mask-1">
           <path
@@ -286,7 +285,7 @@ const CpuArchitecture = ({
             stroke="white"
           />
         </mask>
-        {/* Gradients */}
+        
         <radialGradient id="cpu-blue-grad" fx="1">
           <stop offset="0%" stopColor="#00E8ED" />
           <stop offset="50%" stopColor="#08F" />
@@ -359,7 +358,7 @@ const CpuArchitecture = ({
             )}
           </circle>
         </marker>
-        {/* Cpu connection gradient */}
+        
         <linearGradient
           id="cpu-connection-gradient"
           x1="0"
@@ -370,7 +369,7 @@ const CpuArchitecture = ({
           <stop offset="0%" stopColor="#4F4F4F" />
           <stop offset="60%" stopColor="#121214" />
         </linearGradient>
-        {/* Add CPU Text Gradient */}
+        
         <linearGradient id="cpu-text-gradient" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#666666">
             <animate

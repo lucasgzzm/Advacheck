@@ -1,0 +1,241 @@
+.pageContainer {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.headerSection {
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.headerTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.headerIconBox {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pageTitle {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-main);
+}
+
+.pageSubtitle {
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-size: 0.85rem;
+}
+
+.filterBar {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--card-border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.searchWrapper {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  max-width: 380px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.searchInput {
+  width: 100%;
+  padding-left: 36px;
+  font-size: 0.9rem;
+}
+
+.filterSelect {
+  font-size: 0.9rem;
+  min-width: 200px;
+  flex: 0 0 auto;
+}
+
+.eventCount {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.loadingState {
+  padding: 60px;
+  text-align: center;
+}
+
+.loadingText {
+  margin-top: 16px;
+  color: var(--text-muted);
+}
+
+.errorState {
+  padding: 48px;
+  text-align: center;
+  color: var(--red);
+}
+
+.errorTitle {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.errorDetail {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.emptyState {
+  padding: 60px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.emptyIcon {
+  opacity: 0.3;
+  margin-bottom: 16px;
+}
+
+.emptyTitle {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-main);
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.8rem;
+}
+
+.tableHead tr {
+  border-bottom: 2px solid var(--card-border);
+}
+
+.tableHeaderCell {
+  padding: 14px 16px;
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.tableRow {
+  transition: background 0.15s;
+}
+
+.tableCell {
+  padding: 14px 16px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.dateCell {
+  white-space: nowrap;
+}
+
+.dateGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.timePart {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.analystCell {
+  white-space: nowrap;
+}
+
+.analystGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.analystAvatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: var(--primary-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.analystName {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.detailsCell {
+  color: var(--text-muted);
+  max-width: 420px;
+}
+
+.paginationBar {
+  padding: 16px 24px;
+  border-top: 1px solid var(--card-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg-color);
+}
+
+.paginationInfo {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.paginationControls {
+  display: flex;
+  gap: 8px;
+}
+
+.pageIndicator {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}

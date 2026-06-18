@@ -8,11 +8,10 @@ const ENTIDAD_COLORS = {
   SENASA: '#059669', SAG: '#65a30d', SERNAPESCA: '#0284c7',
   ISP: '#7c3aed', COFEPRIS: '#dc2626', SEC: '#d97706',
   SUBTEL: '#0891b2', MINTRANS: '#4f46e5', INN: '#6b7280',
-}; // Eliminar en PR#2: importar desde configuraciones/entidades
+}; 
 
 import { cssVar as v } from '../libreria/utilidades';
 
-// Modal para confirmar partida arancelaria y seleccionar entidades regulatorias aplicables
 export default function ModalConfirmacionPartida({
   abierto, partida, descripcion, itemDescripcion,
   entidades, cargandoEntidades, onConfirmar, onCerrar,
@@ -31,7 +30,6 @@ export default function ModalConfirmacionPartida({
 
   if (!abierto) return null;
 
-  // Alterna la selección de una entidad regulatoria
   const toggle = (idx) => {
     setSeleccionadas(p => ({ ...p, [idx]: !p[idx] }));
   };
@@ -50,7 +48,7 @@ export default function ModalConfirmacionPartida({
         width: '600px', maxWidth: '90vw', maxHeight: '90vh',
         overflow: 'hidden', display: 'flex', flexDirection: 'column',
       }}>
-        {/* Header */}
+        
         <div style={{
           padding: '20px 24px', borderBottom: `1px solid ${v('card-border')}`,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -78,9 +76,8 @@ export default function ModalConfirmacionPartida({
           </button>
         </div>
 
-        {/* Body */}
         <div style={{ padding: '20px 24px', overflow: 'auto', flex: 1 }}>
-          {/* Partida info */}
+          
           <div style={{
             padding: '14px', borderRadius: '10px',
             background: 'rgba(124,58,237,0.05)', border: '1px solid rgba(124,58,237,0.2)',
@@ -104,7 +101,6 @@ export default function ModalConfirmacionPartida({
             )}
           </div>
 
-          {/* Entidades Regulatorias */}
           <div>
             <div
               onClick={() => setEntidadesExpandidas(!entidadesExpandidas)}
@@ -200,7 +196,6 @@ export default function ModalConfirmacionPartida({
           </div>
         </div>
 
-        {/* Footer */}
         <div style={{
           padding: '16px 24px', borderTop: `1px solid ${v('card-border')}`,
           display: 'flex', gap: '10px', justifyContent: 'flex-end',

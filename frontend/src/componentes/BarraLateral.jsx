@@ -1,16 +1,14 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, User, Users, LogOut, History as HistoryIcon, Activity, Building2, Briefcase } from 'lucide-react';
+﻿import React, { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Users, LogOut, History as HistoryIcon, Activity } from 'lucide-react';
 import FloatingActionMenu from './interfaz/MenuAccionFlotante';
-import NotificacionCampana from './NotificacionCampana';
 import { useAuth } from '../contexto/ContextoAuth';
+import styles from '../../css/BarraLateral.module.css';
 
-// Barra de navegación lateral con menú adaptado según rol (Admin/Agente)
 function Sidebar() {
   const { user, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
 
   const isAdmin = user?.role === 'Administrador';
 
@@ -24,39 +22,18 @@ function Sidebar() {
     : [
         { path: '/', name: 'Dashboard', icon: LayoutDashboard },
         { path: '/historial', name: 'Mis Facturas', icon: HistoryIcon },
-        { path: '/clientes', name: 'Clientes', icon: Briefcase },
       ];
 
   return (
-    <aside
-      className="sidebar"
-      style={{
-        width: '260px',
-        height: '100vh',
-        backgroundColor: 'var(--card-bg)',
-        borderRight: '1px solid var(--card-border)',
-        position: 'fixed',
-        left: 0,
-        top: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 1000,
-        padding: '24px 0',
-      }}
-    >
-      <div style={{ padding: '0 16px', marginBottom: '40px', display: 'flex', justifyContent: 'center', position: 'relative' }}>
-        <Link to="/" className="sidebar-logo-link" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textDecoration: 'none', gap: '6px' }}>
-          <img src="/logo-completo.png" alt="WebCheck" style={{ height: '48px', width: 'auto' }} />
+    <aside className={`sidebar ${styles.aside}`}>
+      <div className={styles.logoContainer}>
+        <Link to="/" className={`sidebar-logo-link ${styles.logoLink}`}>
+          <img src="/logo-completo.png" alt="WebCheck" className={styles.logoImg} />
           <span
+            className={styles.badge}
             style={{
               backgroundColor: isAdmin ? 'var(--primary-light)' : 'rgba(16, 185, 129, 0.1)',
               color: isAdmin ? 'var(--primary)' : 'var(--green)',
-              fontSize: '0.6rem',
-              fontWeight: 800,
-              padding: '2px 8px',
-              borderRadius: '4px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
               border: `1px solid ${isAdmin ? 'rgba(59,130,246,0.2)' : 'rgba(16,185,129,0.2)'}`,
             }}
           >
@@ -65,7 +42,7 @@ function Sidebar() {
         </Link>
       </div>
 
-      <nav style={{ flex: 1, padding: '0 12px' }}>
+      <nav className={styles.nav}>
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
@@ -73,26 +50,7 @@ function Sidebar() {
             <Link
               key={item.path}
               to={item.path}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px 16px',
-                borderRadius: '12px',
-                textDecoration: 'none',
-                marginBottom: '4px',
-                transition: 'all 0.2s ease',
-                color: isActive ? 'var(--primary)' : 'var(--text-muted)',
-                backgroundColor: isActive ? 'var(--primary-light)' : 'transparent',
-                fontWeight: isActive ? 600 : 500,
-                fontSize: '0.92rem',
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.03)';
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
-              }}
+              className={`${styles.menuItem} ${isActive ? styles.menuItemActive : ''}`}
             >
               <Icon size={20} />
               {item.name}
@@ -101,20 +59,11 @@ function Sidebar() {
         })}
       </nav>
 
-      <div style={{ padding: '0 12px 8px 12px' }}>
-        <NotificacionCampana fullWidth />
-      </div>
-
-      <div style={{ padding: '16px 16px 24px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div className={styles.footer}>
         <FloatingActionMenu
           className="relative"
-          title={user?.name || 'Perfil'}
+          title={user?.name || 'Usuario'}
           options={[
-            {
-              label: 'Perfil',
-              Icon: <User size={16} />,
-              onClick: () => navigate('/perfil'),
-            },
             {
               label: 'Cerrar Sesión',
               Icon: <LogOut size={16} />,
@@ -125,81 +74,20 @@ function Sidebar() {
       </div>
 
       {showLogoutModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            backgroundColor: 'rgba(0,0,0,0.4)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: 'var(--card-bg)',
-              padding: '32px',
-              borderRadius: '24px',
-              width: '90%',
-              maxWidth: '400px',
-              textAlign: 'center',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              border: '1px solid var(--card-border)',
-              animation: 'slideUp 0.3s ease',
-            }}
-          >
-            <div
-              style={{
-                width: '64px',
-                height: '64px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 20px',
-              }}
-            >
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
+            <div className={styles.modalIconCircle}>
               <LogOut size={32} color="var(--red)" />
             </div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px' }}>¿Cerrar Sesión?</h2>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '28px', fontSize: '0.95rem' }}>
+            <h2 className={styles.modalTitle}>¿Cerrar Sesión?</h2>
+            <p className={styles.modalDesc}>
               Estás a punto de salir de tu cuenta de WebCheck. Deberás volver a ingresar tus credenciales.
             </p>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={() => setShowLogoutModal(false)}
-                style={{
-                  flex: 1,
-                  padding: '12px',
-                  borderRadius: '12px',
-                  border: '1px solid var(--card-border)',
-                  backgroundColor: 'white',
-                  color: 'var(--text-main)',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
+            <div className={styles.modalButtons}>
+              <button onClick={() => setShowLogoutModal(false)} className={styles.btnCancel}>
                 Cancelar
               </button>
-              <button
-                onClick={logout}
-                style={{
-                  flex: 1,
-                  padding: '12px',
-                  borderRadius: '12px',
-                  border: 'none',
-                  backgroundColor: 'var(--red)',
-                  color: 'white',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
+              <button onClick={logout} className={styles.btnLogout}>
                 Cerrar Sesión
               </button>
             </div>

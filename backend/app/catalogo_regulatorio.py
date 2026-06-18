@@ -1,51 +1,76 @@
-# Catalogo de entidades regulatorias por rango de partida arancelaria.
-# Cada entrada asocia un rango de codigos (desde - hasta) con una entidad,
-# el tipo de permiso que se requiere y la ley que lo exige.
-# Esto se usa para determinar que Vistos Buenos (V°B°) necesita un documento
-# segun las partidas arancelarias que contenga.
 
 ENTIDADES_POR_PARTIDA = [
-    {"rango_desde": "0101", "rango_hasta": "0609", "entidad": "SENASA", "tipo": "Certificado Fitosanitario", "ley": "Ley N° 18.450 / Resolución SENASA N° 125"},
-    {"rango_desde": "0201", "rango_hasta": "0210", "entidad": "SAG", "tipo": "Certificado Zoosanitario", "ley": "Reglamento General de Cárnicos"},
-    {"rango_desde": "0301", "rango_hasta": "0308", "entidad": "SERNAPESCA", "tipo": "Certificado Sanitario de Pesca", "ley": "Ley General de Pesca y Acuicultura"},
-    {"rango_desde": "0401", "rango_hasta": "0410", "entidad": "SAG", "tipo": "Certificado Sanitario Lácteos", "ley": "Norma Técnica N° 145"},
-    {"rango_desde": "1001", "rango_hasta": "1006", "entidad": "SENASA", "tipo": "Certificado Fitosanitario de Granos", "ley": "Resolución SENASA N° 78"},
-    {"rango_desde": "1501", "rango_hasta": "1518", "entidad": "SENASA", "tipo": "Certificado Sanitario de Aceites", "ley": "Código Alimentario"},
-    {"rango_desde": "1601", "rango_hasta": "1605", "entidad": "ISP", "tipo": "Registro Sanitario de Alimentos", "ley": "Reglamento Sanitario de Alimentos"},
-    {"rango_desde": "2001", "rango_hasta": "2009", "entidad": "ISP", "tipo": "Registro Sanitario de Alimentos", "ley": "Resolución ISP N° 788"},
-    {"rango_desde": "2101", "rango_hasta": "2106", "entidad": "ISP", "tipo": "Registro Sanitario de Alimentos", "ley": "Reglamento Sanitario de Alimentos"},
-    {"rango_desde": "2201", "rango_hasta": "2209", "entidad": "ISP", "tipo": "Registro Sanitario de Bebidas", "ley": "Ley N° 19.925"},
-    {"rango_desde": "2401", "rango_hasta": "2403", "entidad": "ISP", "tipo": "Registro Sanitario de Tabaco", "ley": "Ley N° 20.660"},
-    {"rango_desde": "2710", "rango_hasta": "2715", "entidad": "SEC", "tipo": "Certificado de Calidad de Combustibles", "ley": "DS N° 160 / Reglamento SEC"},
-    {"rango_desde": "2801", "rango_hasta": "2853", "entidad": "COFEPRIS", "tipo": "Permiso de Sustancias Químicas Controladas", "ley": "NOM-005-SSA1"},
-    {"rango_desde": "2901", "rango_hasta": "2942", "entidad": "COFEPRIS", "tipo": "Permiso de Sustancias Químicas Esenciales", "ley": "Ley Federal de Químicos Esenciales"},
-    {"rango_desde": "3001", "rango_hasta": "3006", "entidad": "ISP", "tipo": "Registro Sanitario de Medicamentos", "ley": "DS N° 3 / ISP Reglamento Farmacéutico"},
-    {"rango_desde": "3001", "rango_hasta": "3006", "entidad": "COFEPRIS", "tipo": "Registro Sanitario de Medicamentos", "ley": "NOM-059-SSA1"},
-    {"rango_desde": "3808", "rango_hasta": "3809", "entidad": "SAG", "tipo": "Certificado de Plaguicidas", "ley": "Resolución SAG N° 2.348"},
-    {"rango_desde": "4011", "rango_hasta": "4013", "entidad": "INN", "tipo": "Certificado de Norma Técnica de Neumáticos", "ley": "NCH 2369"},
-    {"rango_desde": "6403", "rango_hasta": "6405", "entidad": "SEC", "tipo": "Certificado de Seguridad de Calzado", "ley": "NCH 1970"},
-    {"rango_desde": "8418", "rango_hasta": "8418", "entidad": "SEC", "tipo": "Certificado de Eficiencia Energética", "ley": "DS N° 298 / Reglamento SEC"},
-    {"rango_desde": "8471", "rango_hasta": "8473", "entidad": "SUBTEL", "tipo": "Homologación de Equipos de Telecomunicaciones", "ley": "Ley N° 18.168 / Norma Técnica SUBTEL"},
-    {"rango_desde": "8517", "rango_hasta": "8518", "entidad": "SUBTEL", "tipo": "Homologación de Equipos de Telecomunicaciones", "ley": "Resolución SUBTEL N° 600"},
-    {"rango_desde": "8525", "rango_hasta": "8528", "entidad": "SUBTEL", "tipo": "Homologación de Equipos de Radiodifusión", "ley": "Norma Técnica SUBTEL"},
-    {"rango_desde": "8542", "rango_hasta": "8542", "entidad": "SEC", "tipo": "Certificado de Seguridad Eléctrica", "ley": "DS N° 298 / NCH 4"},
-    {"rango_desde": "8703", "rango_hasta": "8705", "entidad": "MINTRANS", "tipo": "Certificado de Homologación Vehicular", "ley": "DS N° 55 / Ley de Tránsito"},
-    {"rango_desde": "9018", "rango_hasta": "9022", "entidad": "ISP", "tipo": "Registro Sanitario de Equipos Médicos", "ley": "DS N° 3 / ISP Reglamento de Dispositivos Médicos"},
-    {"rango_desde": "9018", "rango_hasta": "9022", "entidad": "COFEPRIS", "tipo": "Registro Sanitario de Dispositivos Médicos", "ley": "NOM-240-SSA1"},
-    {"rango_desde": "9401", "rango_hasta": "9403", "entidad": "SEC", "tipo": "Certificado de Seguridad de Muebles", "ley": "NCH 825"},
-    {"rango_desde": "9503", "rango_hasta": "9503", "entidad": "ISP", "tipo": "Certificado de Seguridad de Juguetes", "ley": "NCH 325 / ISP Resolución N° 1.200"},
-    {"rango_desde": "9503", "rango_hasta": "9503", "entidad": "SEC", "tipo": "Certificado de Seguridad Eléctrica de Juguetes", "ley": "NCH 4"},
-    {"rango_desde": "9506", "rango_hasta": "9506", "entidad": "ISP", "tipo": "Certificado de Seguridad de Artículos Deportivos", "ley": "Resolución ISP N° 450"},
+    # SEREMI de Salud — Certificado de Destinación Aduanera (CDA) / Uso y Disposición
+    # Alimentos procesados, pastas, salsas, bebidas, aceites comestibles, conservas
+    {"rango_desde": "1501", "rango_hasta": "1518", "entidad": "SEREMI de Salud", "tipo": "CDA / Uso y Disposicion de Alimentos"},
+    {"rango_desde": "1601", "rango_hasta": "1605", "entidad": "SEREMI de Salud", "tipo": "CDA / Uso y Disposicion de Alimentos"},
+    {"rango_desde": "1701", "rango_hasta": "1704", "entidad": "SEREMI de Salud", "tipo": "CDA / Uso y Disposicion de Alimentos"},
+    {"rango_desde": "1801", "rango_hasta": "1806", "entidad": "SEREMI de Salud", "tipo": "CDA / Uso y Disposicion de Alimentos"},
+    {"rango_desde": "1901", "rango_hasta": "1905", "entidad": "SEREMI de Salud", "tipo": "CDA / Uso y Disposicion de Alimentos"},
+    {"rango_desde": "2001", "rango_hasta": "2009", "entidad": "SEREMI de Salud", "tipo": "CDA / Uso y Disposicion de Alimentos"},
+    {"rango_desde": "2101", "rango_hasta": "2106", "entidad": "SEREMI de Salud", "tipo": "CDA / Uso y Disposicion de Alimentos"},
+    {"rango_desde": "2201", "rango_hasta": "2209", "entidad": "SEREMI de Salud", "tipo": "CDA / Uso y Disposicion de Bebidas"},
+    {"rango_desde": "2301", "rango_hasta": "2309", "entidad": "SEREMI de Salud", "tipo": "CDA / Uso y Disposicion de Alimentos"},
+
+    # SAG — Certificado Zoosanitario / Fitosanitario / Internación de Maderas
+    # Carnes, frutas frescas, semillas, productos agrícolas sin procesar, maderas
+    {"rango_desde": "0101", "rango_hasta": "0110", "entidad": "SAG", "tipo": "Certificado Zoosanitario de Importacion"},
+    {"rango_desde": "0201", "rango_hasta": "0210", "entidad": "SAG", "tipo": "Certificado Zoosanitario de Importacion"},
+    {"rango_desde": "0301", "rango_hasta": "0308", "entidad": "SAG", "tipo": "Certificado Zoosanitario de Importacion"},
+    {"rango_desde": "0401", "rango_hasta": "0410", "entidad": "SAG", "tipo": "Certificado Zoosanitario de Importacion"},
+    {"rango_desde": "0501", "rango_hasta": "0511", "entidad": "SAG", "tipo": "Certificado Zoosanitario de Importacion"},
+    {"rango_desde": "0601", "rango_hasta": "0604", "entidad": "SAG", "tipo": "Certificado Fitosanitario de Importacion"},
+    {"rango_desde": "0701", "rango_hasta": "0714", "entidad": "SAG", "tipo": "Certificado Fitosanitario de Importacion"},
+    {"rango_desde": "0801", "rango_hasta": "0814", "entidad": "SAG", "tipo": "Certificado Fitosanitario de Importacion"},
+    {"rango_desde": "0901", "rango_hasta": "0910", "entidad": "SAG", "tipo": "Certificado Fitosanitario de Importacion"},
+    {"rango_desde": "1001", "rango_hasta": "1008", "entidad": "SAG", "tipo": "Certificado Fitosanitario de Importacion"},
+    {"rango_desde": "1101", "rango_hasta": "1109", "entidad": "SAG", "tipo": "Certificado Fitosanitario de Importacion"},
+    {"rango_desde": "1201", "rango_hasta": "1214", "entidad": "SAG", "tipo": "Certificado Fitosanitario de Importacion"},
+    {"rango_desde": "1301", "rango_hasta": "1302", "entidad": "SAG", "tipo": "Certificado Fitosanitario de Importacion"},
+    {"rango_desde": "1401", "rango_hasta": "1404", "entidad": "SAG", "tipo": "Certificado Fitosanitario de Importacion"},
+    {"rango_desde": "4401", "rango_hasta": "4421", "entidad": "SAG", "tipo": "Certificado de Internacion de Maderas"},
+
+    # SUBTEL — Homologación / Permiso de Internación
+    # Dispositivos con conectividad celular, Wi-Fi, Bluetooth, radiofrecuencia
+    {"rango_desde": "8517", "rango_hasta": "8517", "entidad": "SUBTEL", "tipo": "Homologacion / Permiso de Internacion"},
+    {"rango_desde": "8525", "rango_hasta": "8526", "entidad": "SUBTEL", "tipo": "Homologacion / Permiso de Internacion"},
+    {"rango_desde": "8527", "rango_hasta": "8527", "entidad": "SUBTEL", "tipo": "Homologacion / Permiso de Internacion"},
+
+    # SEC — Certificación de Seguridad Eléctrica
+    # Electrodomésticos, ampolletas, cables, cargadores, transformadores
+    {"rango_desde": "8504", "rango_hasta": "8504", "entidad": "SEC", "tipo": "Certificacion de Seguridad Electrica"},
+    {"rango_desde": "8516", "rango_hasta": "8516", "entidad": "SEC", "tipo": "Certificacion de Seguridad Electrica"},
+    {"rango_desde": "8539", "rango_hasta": "8539", "entidad": "SEC", "tipo": "Certificacion de Seguridad Electrica"},
+    {"rango_desde": "8541", "rango_hasta": "8541", "entidad": "SEC", "tipo": "Certificacion de Seguridad Electrica"},
+    {"rango_desde": "8544", "rango_hasta": "8544", "entidad": "SEC", "tipo": "Certificacion de Seguridad Electrica"},
+
+    # ISP — Registro Sanitario / Certificado de Destinación
+    # Cosméticos, perfumes, medicamentos, dispositivos médicos
+    {"rango_desde": "3001", "rango_hasta": "3006", "entidad": "ISP", "tipo": "Registro Sanitario / Certificado de Destinacion"},
+    {"rango_desde": "3303", "rango_hasta": "3307", "entidad": "ISP", "tipo": "Registro Sanitario / Certificado de Destinacion"},
+    {"rango_desde": "9018", "rango_hasta": "9022", "entidad": "ISP", "tipo": "Registro Sanitario / Certificado de Destinacion"},
 ]
 
+INCOTERMS_VALIDOS = {"FOB", "CIF", "EXW", "FCA", "FAS", "CFR", "CPT", "CIP", "DAP", "DPU", "DDP"}
+INCOTERMS_MARITIMOS = {"FAS", "FOB", "CFR", "CIF"}
+INCOTERMS_SEGURO_OBLIGA = {"CIF", "CIP"}
+MONEDAS_VALIDAS = {"USD", "EUR", "CLP", "MXN", "PEN", "COP", "BRL", "ARS"}
+
+REGULADORES = {
+    "SEREMI de Salud": "Secretaria Regional Ministerial de Salud — Autoridad Sanitaria",
+    "SAG": "Servicio Agricola y Ganadero",
+    "SUBTEL": "Subsecretaria de Telecomunicaciones",
+    "SEC": "Superintendencia de Electricidad y Combustibles",
+    "ISP": "Instituto de Salud Publica",
+}
+
+def normalizar_partida(partida: str) -> str:
+    if not partida:
+        return ""
+    partida_limpia = partida.replace(".", "").replace(" ", "").replace("-", "")
+    return partida_limpia[:4].ljust(4, "0")
 
 def detectar_entidades_para_partida(partida: str) -> list:
-    """Revisa el catalogo y devuelve las entidades regulatorias que aplican
-    segun el codigo arancelario de la partida.
-    
-    Por ejemplo, si la partida es 0402.10, busca en que rango cae
-    y retorna las entidades correspondientes (SAG, SENASA, etc.).
-    """
     if not partida:
         return []
     codigo = normalizar_partida(partida)
@@ -55,35 +80,6 @@ def detectar_entidades_para_partida(partida: str) -> list:
             resultados.append({
                 "entidad": regla["entidad"],
                 "tipo_permiso": regla["tipo"],
-                "ley": regla["ley"],
                 "estado": "pendiente",
             })
     return resultados
-
-
-# Catalogos de Incoterms y monedas para las validaciones del motor de prevalidacion
-INCOTERMS_VALIDOS = {"FOB", "CIF", "EXW", "FCA", "FAS", "CFR", "CPT", "CIP", "DAP", "DPU", "DDP"}
-INCOTERMS_MARITIMOS = {"FAS", "FOB", "CFR", "CIF"}
-INCOTERMS_SEGURO_OBLIGA = {"CIF", "CIP"}
-MONEDAS_VALIDAS = {"USD", "EUR", "CLP", "MXN", "PEN", "COP", "BRL", "ARS"}
-
-
-def normalizar_partida(partida: str) -> str:
-    """Normaliza un codigo de partida arancelaria: saca puntos, espacios y guiones, y deja 4 digitos."""
-    if not partida:
-        return ""
-    partida_limpia = partida.replace(".", "").replace(" ", "").replace("-", "")
-    return partida_limpia[:4].ljust(4, "0")
-
-
-REGULADORES = {
-    "SENASA": "Servicio Nacional de Sanidad Agraria",
-    "SAG": "Servicio Agrícola y Ganadero",
-    "SERNAPESCA": "Servicio Nacional de Pesca y Acuicultura",
-    "ISP": "Instituto de Salud Pública",
-    "COFEPRIS": "Comisión Federal para la Protección contra Riesgos Sanitarios",
-    "SEC": "Superintendencia de Electricidad y Combustibles",
-    "SUBTEL": "Subsecretaría de Telecomunicaciones",
-    "MINTRANS": "Ministerio de Transportes y Telecomunicaciones",
-    "INN": "Instituto Nacional de Normalización",
-}

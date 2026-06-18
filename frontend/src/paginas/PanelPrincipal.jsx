@@ -1,18 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, AlertTriangle, AlertCircle, Zap, ExternalLink, Clock, Shield, FileText, Truck, Briefcase, Calendar } from 'lucide-react';
+import { UploadCloud, AlertTriangle, AlertCircle, Zap, ExternalLink, Clock, Shield, FileText, Briefcase, Calendar, Activity, CheckCircle2, Hourglass } from 'lucide-react';
 import { CpuArchitecture } from '../componentes/interfaz/CpuArchitecture';
 import Modal from '../componentes/interfaz/Modal';
 import { API_BASE, peticionPost, obtenerToken } from '../servicios/api';
 import { MAX_FILE_SIZE_BYTES } from '../constantes';
 
+import styles from '../../css/PanelPrincipal.module.css';
 
-// Componente que renderiza una sección de datos con grid de dos columnas
 function DataSection({ title, children }) {
   return (
-    <div style={{ marginBottom: '20px' }}>
-      <h4 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '10px', color: 'var(--text-main)', letterSpacing: '-0.01em' }}>{title}</h4>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+    <div className={styles.dataSection}>
+      <h4 className={styles.dataSectionTitle}>{title}</h4>
+      <div className={styles.dataGrid}>
         {children}
       </div>
     </div>
@@ -25,36 +25,37 @@ const RIESGO_CONFIG = {
   bajo: { label: 'Riesgo Bajo', color: '#10b981', bg: 'rgba(16,185,129,0.1)', icon: 'CheckCircle' },
 };
 
-// Componente que muestra un banner con el nivel de riesgo del documento
 function RiesgoBanner({ riesgo, observaciones }) {
   const cfg = RIESGO_CONFIG[riesgo] || RIESGO_CONFIG.medio;
   return (
-    <div style={{ padding: '12px 16px', borderRadius: '12px', marginBottom: '20px', background: cfg.bg, border: `1px solid ${cfg.color}30`, display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-      <div style={{ color: cfg.color, flexShrink: 0, marginTop: '2px' }}>
+    <div className={styles.riesgoBanner} style={{ background: cfg.bg, border: `1px solid ${cfg.color}30` }}>
+      <div className={styles.riesgoIcon} style={{ color: cfg.color }}>
         <AlertTriangle size={18} />
       </div>
       <div>
-        <strong style={{ color: cfg.color, fontSize: '0.85rem' }}>{cfg.label}</strong>
-        {observaciones && <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>{observaciones}</p>}
+        <strong className={styles.riesgoLabel} style={{ color: cfg.color }}>{cfg.label}</strong>
+        {observaciones && (
+          <ul className={styles.riesgoList}>
+            {observaciones.split('|').map((motivo, i) => (
+              <li key={i}>{motivo.trim()}</li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
 }
 
-// Componente de campo de entrada reutilizable con estilo condicional
 function InputField({ label, value, colorClass, editable, onChange }) {
   return (
-    <div>
-      <label style={{ display: 'flex', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-        {label}
-      </label>
+    <div className={styles.inputField}>
+      <label>{label}</label>
       <input
         readOnly={!editable}
         className="form-input"
         style={{
-          padding: '8px 12px', fontSize: '0.9rem',
           backgroundColor: colorClass ? 'var(--primary-light)' : (editable ? 'rgba(0,0,0,0.01)' : 'rgba(0,0,0,0.02)'),
-          borderColor: colorClass ? 'var(--primary)' : (editable ? 'var(--card-border)' : 'var(--card-border)'),
+          borderColor: colorClass ? 'var(--primary)' : 'var(--card-border)',
           boxShadow: editable ? 'inset 0 0 0 1px rgba(0,0,0,0.03)' : 'none',
           color: colorClass ? 'var(--primary)' : 'inherit',
           fontWeight: colorClass ? '600' : 'normal',
@@ -67,7 +68,6 @@ function InputField({ label, value, colorClass, editable, onChange }) {
   );
 }
 
-// Componente principal: panel de inicio con carga de PDF, métricas y monitoreo
 const Dashboard = () => {
   const navigate = useNavigate();
   const [autoSave, setAutoSave] = useState(true);
@@ -77,25 +77,22 @@ const Dashboard = () => {
   const [processing, setProcessing] = useState(false);
   const [extractedData, setExtractedData] = useState(null);
   const [editedData, setEditedData] = useState(null);
-  const [camposMod, setCamposMod] = useState({});
-  const [oversizeError, setOversizeError] = useState(null);
+  const [, setCamposMod] = useState({});
+  const [, setOversizeError] = useState(null);
   const [serverError, setServerError] = useState(null);
 
   const [metrics, setMetrics] = useState(null);
   const [alerts, setAlerts] = useState([]);
-  const [monitoreo, setMonitoreo] = useState(null);
   const [pendientes, setPendientes] = useState(null);
   const [vencimientos, setVencimientos] = useState(null);
-  const [kanbanOpen, setKanbanOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('terminal');
-  const [docLimit, setDocLimit] = useState({ usados: 0, limite: 20, proxima_recarga: null });
+  const [docLimit, setDocLimit] = useState({ usados: 0, limite: 20, proxima_recarga: null, puede_subir: true, motivo_bloqueo: null });
   const [rateLimitError, setRateLimitError] = useState(false);
   const [reintentando, setReintentando] = useState(false);
   const [reintentosRestantes, setReintentosRestantes] = useState(0);
-  const [pendingFile, setPendingFile] = useState(null);
+  const [, setPendingFile] = useState(null);
   const [countdown, setCountdown] = useState(null);
 
-  // Definido primero para que el useEffect de countdown pueda usarlo
   const cargarLimite = useCallback(() => {
     const token = obtenerToken();
     fetch(`${API_BASE}/api/documentos/limite`, {
@@ -105,15 +102,13 @@ const Dashboard = () => {
       .then(data => {
         setDocLimit(data);
       })
-      .catch(() => {});
+      .catch(() => {
+        setDocLimit(prev => ({ ...prev }));
+      });
   }, []);
 
-  // Countdown: cuenta regresiva hasta proxima_recarga
   useEffect(() => {
-    if (!docLimit.proxima_recarga) {
-      setCountdown(null);
-      return;
-    }
+    if (!docLimit.proxima_recarga) return;
     const calcular = () => {
       const diff = new Date(docLimit.proxima_recarga) - new Date();
       if (diff <= 0) {
@@ -130,49 +125,58 @@ const Dashboard = () => {
     return () => clearInterval(intervalo);
   }, [docLimit.proxima_recarga, cargarLimite]);
 
-
-  // Fetch inicial de métricas, alertas, monitoreo, pendientes y vencimientos
   useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+
     cargarLimite();
+
+    const intervaloLimite = setInterval(() => {
+      cargarLimite();
+    }, 30000);
+
+    const alEnfocar = () => {
+      cargarLimite();
+    };
+    window.addEventListener('focus', alEnfocar);
+
     const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    fetch(`${API_BASE}/api/documentos/metrics`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
+    const opts = { headers: { 'Authorization': `Bearer ${token}` }, signal };
+
+    fetch(`${API_BASE}/api/documentos/metrics`, opts)
       .then(r => r.json())
       .then(data => setMetrics(data))
       .catch(() => {});
-    fetch(`${API_BASE}/api/documentos/alertas`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
+    fetch(`${API_BASE}/api/documentos/alertas`, opts)
       .then(r => r.json())
       .then(data => setAlerts(data))
       .catch(() => {});
-    fetch(`${API_BASE}/api/documentos/pendientes`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
+    fetch(`${API_BASE}/api/documentos/pendientes`, opts)
       .then(r => r.json())
       .then(data => setPendientes(data))
       .catch(() => {});
-    fetch(`${API_BASE}/api/documentos/vencimientos`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
+    fetch(`${API_BASE}/api/documentos/vencimientos`, opts)
       .then(r => r.json())
       .then(data => setVencimientos(data))
       .catch(() => {});
-  }, []);
 
-  // Limpia la URL del objeto PDF al desmontar
+    return () => {
+      controller.abort();
+      clearInterval(intervaloLimite);
+      window.removeEventListener('focus', alEnfocar);
+    };
+  }, [cargarLimite]);
+
   useEffect(() => {
     return () => {
       if (fileUrl) URL.revokeObjectURL(fileUrl);
     };
   }, [fileUrl]);
 
-  // Maneja el evento drag over en la zona de carga
   const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
-  // Maneja el evento drag leave en la zona de carga
+  
   const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
-  // Maneja el evento drop para procesar el archivo soltado
+  
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
@@ -181,7 +185,7 @@ const Dashboard = () => {
       handleFileUpload(e.dataTransfer.files[0]);
     }
   };
-  // Maneja la selección de archivo desde el input
+  
   const handleFileInput = (e) => {
     if (processing) return;
     if (e.target.files && e.target.files[0]) {
@@ -189,10 +193,9 @@ const Dashboard = () => {
     }
   };
 
-  // Valida, sube el archivo PDF y envía a scanning OCR
   const handleFileUpload = (uploadedFile) => {
     if (uploadedFile.type !== "application/pdf") {
-      alert("Por favor sube un archivo PDF válido.");
+      setServerError("Por favor sube un archivo PDF válido.");
       return;
     }
 
@@ -209,14 +212,14 @@ const Dashboard = () => {
       return;
     }
 
-    if (docLimit.usados >= docLimit.limite) {
+    if (!docLimit.puede_subir) {
       setPendingFile(uploadedFile);
       setRateLimitError(true);
+      cargarLimite();
       return;
     }
 
     setFile(uploadedFile);
-    setDocLimit(prev => ({ ...prev, usados: prev.usados + 1 }));
 
     const url = URL.createObjectURL(uploadedFile);
     setFileUrl(url);
@@ -229,7 +232,7 @@ const Dashboard = () => {
     const formData = new FormData();
     formData.append('file', uploadedFile);
 
-    const escanearConReintento = (intento = 0) => {
+    const escanearConReintento = () => {
       const MAX_INTENTOS = 3;
       peticionPost(`/api/facturas/scan?guardar=${autoSave}`, formData)
         .then((data) => {
@@ -239,7 +242,7 @@ const Dashboard = () => {
           setProcessing(false);
           setReintentando(false);
           setReintentosRestantes(0);
-          cargarLimite();
+          if (data.id) cargarLimite();
         })
         .catch((err) => {
           const msg = err.message || '';
@@ -263,7 +266,6 @@ const Dashboard = () => {
     escanearConReintento();
   };
 
-  // Reinicia el estado eliminando el documento temporal en backend
   const handleReset = async () => {
     if (extractedData?.id) {
       try {
@@ -283,9 +285,9 @@ const Dashboard = () => {
     setEditedData(null);
     setCamposMod({});
     setPendingFile(null);
+    cargarLimite();
   };
 
-  // Actualiza un campo anidado en editedData por ruta de puntos
   const updateField = useCallback((path, value) => {
     setEditedData(prev => {
       const next = JSON.parse(JSON.stringify(prev));
@@ -302,7 +304,7 @@ const Dashboard = () => {
   }, []);
 
   return (
-    <div className="fade-in" style={{ maxWidth: '1200px', margin: '0 auto' }}>
+    <div className={`fade-in ${styles.pageContainer}`}>
       <Modal
         abierto={!!serverError}
         titulo="Error de Extracción"
@@ -311,17 +313,6 @@ const Dashboard = () => {
         onCerrar={() => setServerError(null)}
         textoBoton="Cerrar y Reintentar"
         icono={AlertCircle}
-      />
-
-      <Modal
-        abierto={!!oversizeError}
-        titulo="Documento Demasiado Pesado"
-        mensaje={`El archivo pesa ${oversizeError} MB. Para mantener los tiempos de respuesta, el sistema requiere PDFs de máximo 4 MB. Por favor, comprímelo y vuelve a intentarlo.`}
-        variante="advertencia"
-        onCerrar={() => setOversizeError(null)}
-        textoBoton="Entendido"
-        colorTextoBoton="#000"
-        icono={AlertTriangle}
       />
 
       <Modal
@@ -335,85 +326,34 @@ const Dashboard = () => {
         icono={Zap}
       />
 
-      <header className="dashboard-header" style={{
-        marginBottom: '32px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        gap: '24px',
-        flexWrap: 'wrap'
-      }}>
-        <div style={{ flex: '1', minWidth: '300px' }}>
-          
-          {/* Tabs */}
-          <div style={{ display: 'inline-flex', gap: '4px', marginTop: '20px', background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--card-border)', padding: '4px' }}>
+      <header className={styles.headerSection}>
+        <div className={styles.headerLeft}>
+          <div className={styles.tabGroup}>
             <button onClick={() => setActiveTab('terminal')}
-              style={{
-                padding: '10px 20px', borderRadius: '10px', fontWeight: 700, fontSize: '0.85rem',
-                border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                background: activeTab === 'terminal' ? 'var(--primary)' : 'transparent',
-                color: activeTab === 'terminal' ? 'white' : 'var(--text-muted)',
-                transition: 'all 0.2s',
-              }}>
+              className={`${styles.tabBtn} ${activeTab === 'terminal' ? styles.tabBtnActive : styles.tabBtnInactive}`}>
               <UploadCloud size={16} /> Terminal OCR
             </button>
             <button onClick={() => setActiveTab('monitoreo')}
-              style={{
-                padding: '10px 20px', borderRadius: '10px', fontWeight: 700, fontSize: '0.85rem',
-                border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                background: activeTab === 'monitoreo' ? 'var(--primary)' : 'transparent',
-                color: activeTab === 'monitoreo' ? 'white' : 'var(--text-muted)',
-                transition: 'all 0.2s',
-              }}>
+              className={`${styles.tabBtn} ${activeTab === 'monitoreo' ? styles.tabBtnActive : styles.tabBtnInactive}`}>
               <Briefcase size={16} /> Monitoreo y Alertas
             </button>
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: '12px', flexShrink: 0 }}>
-          <div style={{
-            padding: '12px 20px',
-            borderRadius: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '16px',
-            border: `1px solid ${docLimit.usados >= docLimit.limite ? 'var(--red)' : 'var(--card-border)'}`,
-            background: docLimit.usados >= docLimit.limite ? 'rgba(239, 68, 68, 0.05)' : 'var(--card-bg)',
-            whiteSpace: 'nowrap',
-            boxShadow: 'var(--card-shadow)',
-            height: 'fit-content',
-            transition: 'all 0.3s'
-          }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '12px',
-              backgroundColor: docLimit.usados >= docLimit.limite ? 'rgba(239, 68, 68, 0.1)' : 'var(--primary-light)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}>
-              <Zap size={22} color={docLimit.usados >= docLimit.limite ? 'var(--red)' : 'var(--primary)'} />
+          <div className={`${styles.rateBadge} ${docLimit.puede_subir ? styles.rateBadgeReady : styles.rateBadgeBlocked}`}>
+            <div className={`${styles.rateIconBox} ${docLimit.puede_subir ? styles.rateIconReady : styles.rateIconBlocked}`}>
+              <Zap size={22} color={docLimit.puede_subir ? 'var(--green)' : 'var(--red)'} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: '1.2' }}>
-                Documentos / Hora
+            <div className={styles.rateInfo}>
+              <span className={styles.rateStatus} style={{ color: docLimit.puede_subir ? 'var(--green)' : 'var(--red)' }}>
+                {docLimit.puede_subir ? 'Listo para escanear' : docLimit.motivo_bloqueo || 'No disponible'}
               </span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 800, color: docLimit.usados >= docLimit.limite ? 'var(--red)' : 'var(--primary)', display: 'flex', alignItems: 'baseline', gap: '4px', lineHeight: '1.2' }}>
-                {docLimit.usados} <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 600 }}>/ {docLimit.limite}</span>
+              <span className={styles.rateCount} style={{ color: docLimit.puede_subir ? 'var(--green)' : 'var(--red)' }}>
+                {docLimit.usados} <span className={styles.rateDivider}>/ {docLimit.limite} escaneados</span>
               </span>
               {countdown && (
-                <span style={{
-                  fontSize: '0.68rem',
-                  color: docLimit.usados >= docLimit.limite ? 'var(--red)' : 'var(--text-muted)',
-                  fontWeight: 600,
-                  marginTop: '2px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  letterSpacing: '0.02em'
-                }}>
+                <span className={styles.rateCountdown}>
                   <Clock size={10} />
                   Recarga en {countdown}
                 </span>
@@ -424,217 +364,242 @@ const Dashboard = () => {
       </header>
 
       {activeTab === 'monitoreo' && (
-        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div className={`fade-in ${styles.monitoreoSection}`}>
 
-      {/* Tarjetas de métricas del agente */}
-      {metrics && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '14px', marginBottom: '20px' }}>
-          {[
-            { label: 'Total documentos', value: metrics.total_documentos, color: 'var(--primary)', bg: 'rgba(99,102,241,0.08)' },
-            { label: 'Pendientes', value: metrics.pendientes, color: 'var(--yellow)', bg: 'rgba(245,158,11,0.08)' },
-            { label: 'Aprobados este mes', value: metrics.aprobados_este_mes, color: 'var(--green)', bg: 'rgba(16,185,129,0.08)' },
-            { label: 'Riesgo alto', value: `${metrics.tasa_riesgo_alto}%`, color: 'var(--red)', bg: 'rgba(239,68,68,0.08)' },
-            { label: 'Pendientes Admin', value: metrics.pendientes_admin, color: 'var(--accent)', bg: 'rgba(139,92,246,0.08)' },
-          ].map((m, i) => (
-            <div key={i} style={{ padding: '18px 20px', borderRadius: '14px', border: '1px solid var(--card-border)', background: 'var(--card-bg)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>{m.label}</span>
-              <span style={{ fontSize: '1.8rem', fontWeight: 800, color: m.color, lineHeight: 1 }}>{m.value}</span>
+          {metrics && (
+            <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
+              <div className={styles.panelHeader}>
+                <Activity size={16} color="var(--primary)" />
+                <span className={styles.panelTitle}>Resumen de actividad</span>
+              </div>
+              <div className={styles.panelBody}>
+                <div className={styles.metricsGrid}>
+                  {[
+                    { label: 'Total documentos', value: metrics.total_documentos, color: 'var(--primary)', icon: FileText },
+                    { label: 'Pendientes', value: metrics.pendientes, color: 'var(--yellow)', icon: Clock },
+                    { label: 'Aprobados este mes', value: metrics.aprobados_este_mes, color: 'var(--green)', icon: CheckCircle2 },
+                    { label: 'Riesgo alto', value: `${metrics.tasa_riesgo_alto}%`, color: 'var(--red)', icon: AlertTriangle },
+                    { label: 'Pendientes Admin', value: metrics.pendientes_admin, color: 'var(--accent)', icon: Shield },
+                  ].map((m, i) => {
+                    const Icon = m.icon;
+                    return (
+                      <div key={i} className={styles.metricCard} style={{ borderTopColor: m.color }}>
+                        <div className={styles.metricHeader}>
+                          <span className={styles.metricLabel}>{m.label}</span>
+                          <Icon size={14} color={m.color} className={styles.metricIcon} />
+                        </div>
+                        <span className={styles.metricValue} style={{ color: m.color }}>{m.value}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
-        {/* Alertas */}
-      {alerts.length > 0 && (
-        <div style={{ marginBottom: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-            <AlertCircle size={16} color={alerts.some(a => a.severidad === 'alta') ? 'var(--red)' : 'var(--yellow)'} />
-            <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
-              Alertas {'('}{alerts.length}{')'}
-            </h3>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {alerts.map((a, i) => {
-              const cfg = a.severidad === 'alta'
-                ? { color: 'var(--red)', bg: 'rgba(239,68,68,0.07)', border: 'rgba(239,68,68,0.25)' }
-                : { color: 'var(--yellow)', bg: 'rgba(245,158,11,0.07)', border: 'rgba(245,158,11,0.2)' };
-              const Icon = a.tipo === 'estancado' ? Clock : AlertCircle;
-              return (
-                <div key={i} style={{
-                  padding: '10px 14px', borderRadius: '10px',
-                  border: `1px solid ${cfg.border}`, background: cfg.bg,
-                  display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer',
-                }} onClick={() => navigate(`/documentos/${a.documento_id}`)}>
-                  <Icon size={16} color={cfg.color} style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-main)', fontWeight: 500, flex: 1 }}>{a.mensaje}</span>
-                  <span style={{ fontSize: '0.65rem', color: cfg.color, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {a.dias_detenido > 0 ? `${a.dias_detenido}d` : ''}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Pendientes accionables */}
-      {pendientes && (
-        <div className="glass-panel" style={{ padding: '16px 20px', marginBottom: '20px' }}>
-          <h3 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '12px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Briefcase size={16} color="var(--primary)" /> Pendientes por Atender
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-            {[
-              { label: 'Sin clasificar', data: pendientes.sin_clasificar, icon: FileText, color: 'var(--yellow)' },
-              { label: 'Sin despachante', data: pendientes.sin_despachante, icon: Truck, color: 'var(--orange)' },
-              { label: 'V°B° pendientes', data: pendientes.vbb_pendientes, icon: Shield, color: 'var(--accent)' },
-
-            ].map((cat) => {
-              const Icon = cat.icon;
-              const count = cat.data?.length || 0;
-              return (
-                <div key={cat.label} style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--card-border)', background: 'var(--card-bg)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.3px' }}>{cat.label}</span>
-                    <Icon size={14} color={cat.color} />
-                  </div>
-                  <span style={{ fontSize: '1.4rem', fontWeight: 800, color: count > 0 ? cat.color : 'var(--text-muted)', lineHeight: 1 }}>{count}</span>
-                  {count > 0 && (
-                    <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      {cat.data.slice(0, 4).map((d) => (
-                        <div key={d.id} onClick={() => navigate(`/factura/${d.id}/editar`)}
-                          style={{ fontSize: '0.7rem', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px 6px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'underline', textUnderlineOffset: '2px' }}>
-                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.nombre_archivo}</span>
+          {alerts.length > 0 && (
+            <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
+              <div className={`${styles.panelHeader} ${alerts.some(a => a.severidad === 'alta') ? styles.panelHeaderAlert : styles.panelHeaderWarning}`}>
+                <AlertCircle size={16} color={alerts.some(a => a.severidad === 'alta') ? 'var(--red)' : 'var(--yellow)'} />
+                <span className={styles.panelTitle}>Alertas activas</span>
+                <span style={{
+                  fontSize: '0.7rem', fontWeight: 700, padding: '2px 10px', borderRadius: '20px',
+                  background: alerts.some(a => a.severidad === 'alta') ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
+                  color: alerts.some(a => a.severidad === 'alta') ? 'var(--red)' : 'var(--yellow)'
+                }}>
+                  {alerts.length}
+                </span>
+              </div>
+              <div className={styles.alertList}>
+                {alerts.map((a, i) => {
+                  const cfg = a.severidad === 'alta'
+                    ? { color: 'var(--red)', bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.2)', badge: 'Alta', badgeBg: 'rgba(239,68,68,0.12)' }
+                    : { color: 'var(--yellow)', bg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.18)', badge: 'Media', badgeBg: 'rgba(245,158,11,0.12)' };
+                  const Icon = a.tipo === 'estancado' ? Hourglass : AlertCircle;
+                  return (
+                    <div key={i} onClick={() => navigate(`/factura/${a.documento_id}/editar`)} className={styles.alertItem}
+                      style={{ border: `1px solid ${cfg.border}`, background: cfg.bg }}>
+                      <div className={styles.alertBadgeBox} style={{ background: cfg.badgeBg }}>
+                        <Icon size={16} color={cfg.color} />
+                      </div>
+                      <div className={styles.alertContent}>
+                        <div className={styles.alertMsg}>{a.mensaje}</div>
+                        <div className={styles.alertMeta}>
+                          <span className={styles.alertBadgeLabel} style={{ background: cfg.badgeBg, color: cfg.color }}>{cfg.badge}</span>
+                          {a.dias_detenido > 0 && (
+                            <span className={styles.alertDays} style={{ color: cfg.color }}>
+                              {a.dias_detenido}d estancado
+                            </span>
+                          )}
                         </div>
-                      ))}
-                      {cat.data.length > 4 && (
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', opacity: 0.7 }}>+{cat.data.length - 4} más</span>
-                      )}
+                      </div>
                     </div>
-                  )}
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className={styles.infoGrid}>
+
+            {pendientes && (
+              <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
+                <div className={styles.panelHeader}>
+                  <Briefcase size={16} color="var(--primary)" />
+                  <span className={styles.panelTitle}>Pendientes por Atender</span>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Vencimientos / Timeline crítico */}
-      {vencimientos && (
-        <div className="glass-panel" style={{ padding: '16px 20px', marginBottom: '20px' }}>
-          <h3 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '12px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Calendar size={16} color="var(--red)" /> Vencimientos y Alertas de Plazo
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-            {[
-
-              {
-                label: 'Pendientes Admin', data: vencimientos.pendientes_admin,
-                icon: AlertCircle, color: 'var(--accent)',
-                render: (d) => `${d.nombre_archivo} — ${d.dias_espera > 0 ? `${d.dias_espera}d esperando` : 'Hoy'}`,
-              },
-            ].map((cat) => {
-              const Icon = cat.icon;
-              const count = cat.data?.length || 0;
-              return (
-                <div key={cat.label} style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--card-border)', background: 'var(--card-bg)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.3px' }}>{cat.label}</span>
-                    <Icon size={14} color={cat.color} />
-                  </div>
-                  <span style={{ fontSize: '1.4rem', fontWeight: 800, color: count > 0 ? cat.color : 'var(--text-muted)', lineHeight: 1 }}>{count}</span>
-                  {count > 0 && (
-                    <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      {cat.data.slice(0, 3).map((item, i) => (
-                        <div key={i} onClick={() => item.documento_id && navigate(`/factura/${item.documento_id}/editar`)}
-                          style={{ fontSize: '0.7rem', color: 'var(--text-muted)', cursor: item.documento_id ? 'pointer' : 'default', padding: '4px 6px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'underline', textUnderlineOffset: '2px' }}>
-                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.render(item)}</span>
+                <div className={styles.pendientesList}>
+                  {[
+                    { label: 'Sin clasificar', data: pendientes.sin_clasificar, icon: FileText, color: 'var(--yellow)', desc: 'Documentos sin categoría asignada' },
+                    { label: 'V°B° pendientes', data: pendientes.vbb_pendientes, icon: Shield, color: 'var(--accent)', desc: 'Esperando visación regulatoria' },
+                  ].map((cat) => {
+                    const Icon = cat.icon;
+                    const count = cat.data?.length || 0;
+                    return (
+                      <div key={cat.label} className={styles.pendientesCard} style={{ borderTopColor: cat.color }}>
+                        <div className={styles.pendientesInner}>
+                          <div className={styles.pendientesIconBox} style={{ background: `${cat.color}12` }}>
+                            <Icon size={16} color={cat.color} />
+                          </div>
+                          <div className={styles.pendientesBody}>
+                            <div className={styles.pendientesHeader}>
+                              <span className={styles.pendientesTitle}>{cat.label}</span>
+                              <span className={styles.pendientesCount} style={{ color: count > 0 ? cat.color : 'var(--text-muted)' }}>{count}</span>
+                            </div>
+                            <span className={styles.pendientesDesc}>{cat.desc}</span>
+                            {count > 0 && (
+                              <div className={styles.pendientesItems}>
+                                {cat.data.slice(0, 4).map((d) => (
+                                  <div key={d.id} onClick={() => navigate(`/factura/${d.id}/editar`)} className={styles.pendientesItem}>
+                                    <span className={styles.pendientesItemName}>{d.nombre_archivo}</span>
+                                    <ExternalLink size={10} className={styles.pendientesItemIcon} />
+                                  </div>
+                                ))}
+                                {cat.data.length > 4 && (
+                                  <span className={styles.pendientesMore}>+{cat.data.length - 4} m&aacute;s</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      ))}
-                      {cat.data.length > 3 && (
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', opacity: 0.7 }}>+{cat.data.length - 3} más</span>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+              </div>
+            )}
 
-      </div>
+            {vencimientos && (
+              <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
+                <div className={`${styles.panelHeader} ${styles.panelHeaderRed}`}>
+                  <Calendar size={16} color="var(--red)" />
+                  <span className={styles.panelTitle}>Vencimientos y Alertas de Plazo</span>
+                </div>
+                <div className={styles.vencimientosList}>
+                  {(() => {
+                    const data = vencimientos.pendientes_admin || [];
+                    const count = data.length;
+                    if (count === 0) {
+                      return (
+                        <div className={styles.vencimientosEmpty}>Sin documentos con vencimiento próximo</div>
+                      );
+                    }
+                    return (
+                      <>
+                        <div className={styles.vencimientosHeader}>
+                          <span className={styles.vencimientosTitle}>Pendientes Admin ({count})</span>
+                        </div>
+                        {data.slice(0, 5).map((item, i) => {
+                          const days = item.dias_espera || 0;
+                          const urgency = days >= 7 ? 'var(--red)' : days >= 3 ? 'var(--yellow)' : 'var(--text-muted)';
+                          const urgencyBg = days >= 7 ? 'rgba(239,68,68,0.08)' : days >= 3 ? 'rgba(245,158,11,0.08)' : 'rgba(0,0,0,0.02)';
+                          return (
+                            <div key={i} onClick={() => item.documento_id && navigate(`/factura/${item.documento_id}/editar`)} className={styles.vencimientosItem}
+                              style={{ background: urgencyBg }}>
+                              <div className={styles.vencimientosIconBox} style={{ background: `${urgency}15` }}>
+                                <Hourglass size={14} color={urgency} />
+                              </div>
+                              <div className={styles.vencimientosItemBody}>
+                                <div className={styles.vencimientosItemName}>{item.nombre_archivo}</div>
+                              </div>
+                              <div className={styles.vencimientosItemDays} style={{ background: `${urgency}18`, color: urgency }}>
+                                {days > 0 ? `${days}d` : 'Hoy'}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {data.length > 5 && (
+                          <span className={styles.vencimientosMore}>+{data.length - 5} m&aacute;s</span>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+          </div>
 
         </div>
       )}
 
       {activeTab === 'terminal' && (
-        <div className="fade-in dashboard-layout" style={{ height: 'calc(100vh - 220px)' }}>
+        <div className={`fade-in ${styles.terminalLayout}`}>
 
-        <div className="glass-panel" style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          padding: fileUrl ? '0' : '32px',
-          overflow: 'hidden'
-        }}>
+        <div className={`glass-panel ${styles.terminalPanel}`}>
           {!fileUrl ? (
+            <div className={styles.dropZoneWrapper}>
             <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              style={{
-                flex: 1,
-                margin: '12px',
-                border: `2px dashed ${isDragging ? 'var(--primary)' : 'var(--card-border)'}`,
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: isDragging ? 'var(--primary-light)' : 'rgba(255,255,255,0.03)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s',
-                cursor: 'pointer',
-                position: 'relative',
-                minHeight: '400px'
-              }}
+              className={`${styles.dropZone} ${isDragging ? styles.dropZoneDragging : styles.dropZoneDisabled}`}
             >
-              <input type="file" accept=".pdf" onChange={handleFileInput} disabled={processing} style={{ position: 'absolute', width: '100%', height: '100%', opacity: 0, cursor: processing ? 'not-allowed' : 'pointer', zIndex: 10 }} />
-
-              <div style={{ textAlign: 'center', padding: '0 40px' }}>
-                <UploadCloud size={56} color="var(--primary)" style={{ marginBottom: '16px', opacity: 0.9 }} />
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--text-main)', margin: '0 0 12px 0' }}>Arrastra tu Factura Comercial PDF</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.5, maxWidth: '300px', margin: '0 auto' }}>
-                  Suelta el documento aquí para montarlo en el visor e iniciar la lectura OCR automática.
-                </p>
-
-                <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', position: 'relative', zIndex: 20 }}>
-                  <label style={{ position: 'relative', display: 'inline-block', width: '40px', height: '20px' }}>
-                    <input type="checkbox" checked={autoSave} onChange={() => setAutoSave(!autoSave)} style={{ opacity: 0, width: 0, height: 0 }} />
-                    <span style={{
-                      position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
-                      backgroundColor: autoSave ? 'var(--primary)' : '#ccc', transition: '0.4s', borderRadius: '20px'
-                    }}>
-                      <span style={{
-                        position: 'absolute', content: '""', height: '14px', width: '14px', left: autoSave ? '22px' : '4px', bottom: '3px',
-                        backgroundColor: 'white', transition: '0.4s', borderRadius: '50%'
-                      }} />
-                    </span>
-                  </label>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: autoSave ? 'var(--primary)' : 'var(--text-muted)' }}>
-                    {autoSave ? 'Guardar en historial' : 'No guardar (Solo previsualización)'}
-                  </span>
+              {!docLimit.puede_subir ? (
+                <div className={styles.dropZoneContent}>
+                  <UploadCloud size={56} color="var(--red)" className={styles.dropIcon} style={{ opacity: 0.6 }} />
+                  <h3 className={styles.dropBlockedTitle}>
+                    {docLimit.motivo_bloqueo || 'Servicio no disponible, espera un momento'}
+                  </h3>
+                  <p className={styles.dropDesc}>
+                    {docLimit.motivo_bloqueo === 'Limite de documentos por hora alcanzado'
+                      ? 'Has procesado el máximo de documentos permitidos por hora. Por favor, espera a la próxima recarga.'
+                      : 'La plataforma de Inteligencia Artificial alcanzó el límite de consultas por alta demanda o no está disponible en este momento.'}
+                  </p>
                 </div>
+              ) : (
+                <>
+                  <input type="file" accept=".pdf" onChange={handleFileInput} disabled={processing} className={styles.dropZoneInput} style={{ cursor: processing ? 'not-allowed' : 'pointer' }} />
+                  <div className={styles.dropZoneContent}>
+                    <UploadCloud size={56} color="var(--primary)" className={styles.dropIcon} style={{ opacity: 0.9 }} />
+                    <h3 className={styles.dropTitle}>Arrastra tu Factura Comercial PDF</h3>
+                    <p className={styles.dropDesc}>
+                      Suelta el documento aqu&iacute; para montarlo en el visor e iniciar la lectura OCR autom&aacute;tica.
+                    </p>
 
-                <button className="btn btn-primary" style={{ marginTop: '24px' }}>Explorar Archivos</button>
-              </div>
+                    <div className={styles.toggleRow}>
+                      <label className={styles.toggleSwitch}>
+                        <input type="checkbox" checked={autoSave} onChange={() => setAutoSave(!autoSave)} className={styles.toggleInput} />
+                        <span className={styles.toggleSlider} style={{ backgroundColor: autoSave ? 'var(--primary)' : '#ccc' }}>
+                          <span className={styles.toggleKnob} style={{ left: autoSave ? '22px' : '4px' }} />
+                        </span>
+                      </label>
+                      <span className={styles.toggleLabel} style={{ color: autoSave ? 'var(--primary)' : 'var(--text-muted)' }}>
+                        {autoSave ? 'Guardar en historial' : 'No guardar (Solo previsualización)'}
+                      </span>
+                    </div>
+
+                    <button className="btn btn-primary" style={{ marginTop: '24px' }}>Explorar Archivos</button>
+                  </div>
+                </>
+              )}
+            </div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              <div style={{ padding: '16px 24px', backgroundColor: 'rgba(0,0,0,0.03)', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className={styles.pdfHeader}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Vista Previa Estricta (PDF Original)</span>
+                  <span className={styles.pdfTitle}>Vista Previa Estricta (PDF Original)</span>
                 </div>
                 <button onClick={handleReset} className="btn btn-secondary">Cambiar Archivo</button>
               </div>
@@ -645,29 +610,29 @@ const Dashboard = () => {
           )}
         </div>
 
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', padding: '0' }}>
-          <div style={{ padding: '24px', borderBottom: '1px solid var(--card-border)', position: 'sticky', top: 0, backgroundColor: 'var(--card-bg)', backdropFilter: 'blur(10px)', zIndex: 5 }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>Resultados de Inspección</h2>
+        <div className={`glass-panel ${styles.resultsPanel}`}>
+          <div className={styles.resultsHeader}>
+            <h2 className={styles.resultsTitle}>Resultados de Inspecci&oacute;n</h2>
           </div>
 
-          <div style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: processing ? 'center' : 'flex-start' }}>
+          <div className={`${styles.resultsBody} ${processing ? styles.resultsCentered : ''}`}>
             {!file && !processing && !extractedData && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '300px', color: 'var(--text-muted)', textAlign: 'center' }}>
+              <div className={styles.resultsEmpty}>
                 <AlertTriangle size={40} style={{ opacity: 0.3, marginBottom: '16px' }} />
                 <p>Esperando documento para procesar las reglas de inteligencia aduanera.</p>
               </div>
             )}
 
             {processing && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ width: '400px', height: '200px', marginBottom: '24px' }}>
+              <div className={styles.processingContainer}>
+                <div className={styles.cpuContainer}>
                   <CpuArchitecture text="ADVA" />
                 </div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
+                <h3 className={styles.processingTitle}>
                   {reintentando ? `Reintentando... (${reintentosRestantes} restantes)` : 'Escaneando y Validando...'}
                 </h3>
                 {reintentando && (
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+                  <p className={styles.processingSub}>
                     La API de inteligencia artificial esta temporalmente congestionada. Reintentando automaticamente...
                   </p>
                 )}
@@ -675,43 +640,81 @@ const Dashboard = () => {
             )}
 
             {extractedData && (
-              <div className="fade-in">
+              <div className={styles.resultsContent}>
                 <RiesgoBanner riesgo={extractedData.riesgo} observaciones={extractedData.observaciones} />
 
                 {extractedData.validacion_error && (
-                  <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--red)', padding: '16px', borderRadius: 'var(--radius-sm)', marginBottom: '24px', border: '1px solid var(--red)40', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div className={styles.validationError}>
                     <AlertCircle size={20} />
                     <strong>Inconsistencia detectada:</strong> {extractedData.mensaje_error}
                   </div>
                 )}
 
-                {/* Cuadratura de Ítems */}
+                {extractedData.confianza && extractedData.confianza.nivel !== 'ALTA' && (() => {
+                  const c = extractedData.confianza;
+                  const esBaja = c.nivel === 'BAJA';
+                  return (
+                    <div className={styles.confidenceBox} style={{
+                      background: esBaja ? 'rgba(239,68,68,0.06)' : 'rgba(245,158,11,0.06)',
+                      border: `1px solid ${esBaja ? 'var(--red)' : 'var(--yellow)'}30`,
+                    }}>
+                      <div className={styles.confidenceHeader}>
+                        {esBaja ? <AlertCircle size={14} color="var(--red)" /> : <AlertTriangle size={14} color="var(--yellow)" />}
+                        <strong className={styles.confidenceLabel}>Extracción con confianza {c.nivel}</strong>
+                        <span className={styles.confidenceAvg}>(promedio: {c.promedio}%)</span>
+                      </div>
+                      {c.campos_criticos?.length > 0 && (
+                        <div className={styles.confidenceFields}>
+                          <strong>Campos con baja precisión:</strong>
+                          <ul className={styles.confidenceFieldList}>
+                            {c.campos_criticos
+                              .map(k => ({ campo: k.campo ?? k, puntaje: k.puntaje ?? (c.detalle?.[k.campo ?? k] ?? 0) }))
+                              .sort((a, b) => a.puntaje - b.puntaje)
+                              .map(({ campo, puntaje }) => {
+                                const LABELS = {
+                                  numero_factura: 'N° de Factura', monto_total: 'Monto Total',
+                                  monto_subtotal: 'Subtotal', monto_flete: 'Flete', monto_seguro: 'Seguro',
+                                  monto_otros_gastos: 'Otros Gastos', incoterm: 'Incoterm', moneda: 'Moneda',
+                                  fecha_emision: 'Fecha de Emisión', pais_origen: 'País de Origen',
+                                  emisor_nombre: 'Exportador', emisor_tax_id: 'RUT Exportador',
+                                  receptor_nombre: 'Importador', receptor_tax_id: 'RUT Importador',
+                                  cuadratura_items: 'Cuadratura Items vs Total',
+                                };
+                                const m = campo.match(/^detalle_(\d+)_(cantidad|precio|descripcion)$/);
+                                const label = m
+                                  ? `Item #${parseInt(m[1]) + 1} - ${{ cantidad: 'Cantidad', precio: 'Precio Unit.', descripcion: 'Descripción' }[m[2]]}`
+                                  : (LABELS[campo] || campo.replace(/_/g, ' '));
+                                return <li key={campo} style={{ color: esBaja ? 'var(--red)' : 'var(--yellow)', fontWeight: 500 }}>{label} <span style={{ opacity: 0.6 }}>({puntaje}%)</span></li>;
+                              })}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {(() => {
                   const c = extractedData.cuadratura_items;
                   if (!c || !c.ejecutado || c.coincide) return null;
-                  const totalRef = c.tipo_comparacion === 'subtotal' ? c.subtotal_declarado : c.total_cif_declarado;
-                  const labelRef = c.tipo_comparacion === 'subtotal' ? 'subtotal' : 'total CIF';
-                  const fleteSeguro = c.total_cif_declarado && c.subtotal_declarado
-                    ? ` (flete/seguro/otros suman $${(c.total_cif_declarado - c.subtotal_declarado).toFixed(2)})`
-                    : '';
                   return (
-                    <div style={{
-                      padding: '14px 18px', borderRadius: '12px', marginBottom: '16px',
+                    <div className={styles.cuadraturaBox} style={{
                       background: c.estado === 'FAIL' ? 'rgba(239,68,68,0.06)' : 'rgba(245,158,11,0.06)',
                       border: `1px solid ${c.estado === 'FAIL' ? 'var(--red)' : 'var(--yellow)'}30`,
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontSize: '0.8rem' }}>
+                      <div className={styles.cuadraturaHeader}>
                         <AlertCircle size={14} color={c.estado === 'FAIL' ? 'var(--red)' : 'var(--yellow)'} />
-                        <strong style={{ color: 'var(--text-main)' }}>Cuadratura de Ítems</strong>
+                        <strong style={{ color: 'var(--text-main)' }}>Cuadratura de &Iacute;tems</strong>
                       </div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                        La suma de los {c.items.length} ítem(s) da <strong style={{ color: 'var(--text-main)' }}>${c.total_calculado.toFixed(2)}</strong>,
-                        pero el {labelRef} declarado es <strong style={{ color: 'var(--text-main)' }}>${(totalRef || 0).toFixed(2)}</strong>.
+                      <div className={styles.cuadraturaDetail}>
+                        Items (<strong style={{ color: 'var(--text-main)' }}>${c.suma_items.toFixed(2)}</strong>)
+                        {' '}+ Flete (<strong>${c.flete.toFixed(2)}</strong>)
+                        {' '}+ Seguro (<strong>${c.seguro.toFixed(2)}</strong>)
+                        {' '}+ Otros (<strong>${c.otros.toFixed(2)}</strong>)
+                        {' '}= <strong style={{ color: 'var(--text-main)' }}>${c.suma_con_gastos.toFixed(2)}</strong>
+                        {' '}vs Total CIF <strong style={{ color: 'var(--text-main)' }}>${(c.total_cif_declarado || 0).toFixed(2)}</strong>.
                         {' '}Diferencia: <strong style={{ color: c.estado === 'FAIL' ? 'var(--red)' : 'var(--yellow)' }}>${c.diferencia.toFixed(2)} ({c.diferencia_porcentaje.toFixed(1)}%)</strong>.
-                        {fleteSeguro}
-                        {' '}Revisa y corrige los valores antes de numerar.
                       </div>
-                      <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                      <div className={styles.cuadraturaItems}>
                         {c.items.map((it, i) => (
                           <span key={i}>
                             #{it.indice + 1}: {it.cantidad} × ${it.precio_unitario} = <strong>${it.subtotal_calculado.toFixed(2)}</strong>
@@ -722,43 +725,42 @@ const Dashboard = () => {
                   );
                 })()}
 
-                <DataSection title="Relación Comercial (Origen/Destino)">
-                  <InputField label="Remitente (Emisor)" value={`${(editedData?.remitente?.nombre ?? extractedData.remitente.nombre)} | ${(editedData?.remitente?.documento ?? extractedData.remitente.documento)}`}  />
-                  <InputField label="Dir. Remitente" value={editedData?.remitente?.direccion ?? extractedData.remitente.direccion} editable onChange={e => updateField('remitente.direccion', e.target.value)} />
-                  <InputField label="Destinatario (Receptor)" value={`${(editedData?.destinatario?.nombre ?? extractedData.destinatario.nombre)} | ${(editedData?.destinatario?.documento ?? extractedData.destinatario.documento)}`}  />
-                  <InputField label="Dir. Destinatario" value={editedData?.destinatario?.direccion ?? extractedData.destinatario.direccion} editable onChange={e => updateField('destinatario.direccion', e.target.value)} />
+                <DataSection title="Relaci&oacute;n Comercial (Origen/Destino)">
+                  <InputField label="Remitente (Emisor)" value={`${(editedData?.remitente?.nombre ?? extractedData.remitente.nombre ?? '')} | ${(editedData?.remitente?.documento ?? extractedData.remitente.documento ?? '')}`}  />
+                  <InputField label="Dir. Remitente" value={editedData?.remitente?.direccion ?? extractedData.remitente.direccion ?? ''} editable onChange={e => updateField('remitente.direccion', e.target.value)} />
+                  <InputField label="Destinatario (Receptor)" value={`${(editedData?.destinatario?.nombre ?? extractedData.destinatario.nombre ?? '')} | ${(editedData?.destinatario?.documento ?? extractedData.destinatario.documento ?? '')}`}  />
+                  <InputField label="Dir. Destinatario" value={editedData?.destinatario?.direccion ?? extractedData.destinatario.direccion ?? ''} editable onChange={e => updateField('destinatario.direccion', e.target.value)} />
                 </DataSection>
 
                 <DataSection title="Trazabilidad y Documento">
-                  <InputField label="Nº de Factura" value={editedData?.factura?.numero ?? extractedData.factura.numero}  editable onChange={e => updateField('factura.numero', e.target.value)} />
-                  <InputField label="Fecha Emisión" value={editedData?.factura?.fecha ?? extractedData.factura.fecha}  editable onChange={e => updateField('factura.fecha', e.target.value)} />
-                  <InputField label="Incoterm Pactado" value={editedData?.factura?.incoterm ?? (extractedData.factura.incoterm || 'No detectado')}  editable onChange={e => updateField('factura.incoterm', e.target.value)} />
-                  <InputField label="País de Origen" value={editedData?.factura?.pais_origen ?? (extractedData.factura.pais_origen || 'No especificado')}  editable onChange={e => updateField('factura.pais_origen', e.target.value)} />
-                  <InputField label="País Manifiesto" value={editedData?.transporte?.paisOrigen ?? extractedData.transporte.paisOrigen} editable onChange={e => updateField('transporte.paisOrigen', e.target.value)} />
-                  <InputField label="Tipo de Transporte" value={editedData?.transporte?.metodo ?? extractedData.transporte.metodo} editable onChange={e => updateField('transporte.metodo', e.target.value)} />
+                  <InputField label="N&ordm; de Factura" value={editedData?.factura?.numero ?? extractedData.factura.numero ?? ''}  editable onChange={e => updateField('factura.numero', e.target.value)} />
+                  <InputField label="Fecha Emisi&oacute;n" value={editedData?.factura?.fecha ?? extractedData.factura.fecha ?? ''}  editable onChange={e => updateField('factura.fecha', e.target.value)} />
+                  <InputField label="Incoterm Pactado" value={editedData?.factura?.incoterm ?? extractedData.factura.incoterm ?? ''}  editable onChange={e => updateField('factura.incoterm', e.target.value)} />
+                  <InputField label="Pa&iacute;s de Origen" value={editedData?.factura?.pais_origen ?? extractedData.factura.pais_origen ?? ''}  editable onChange={e => updateField('factura.pais_origen', e.target.value)} />
+                  <InputField label="Pa&iacute;s Manifiesto" value={editedData?.transporte?.paisOrigen ?? extractedData.transporte.paisOrigen ?? ''} editable onChange={e => updateField('transporte.paisOrigen', e.target.value)} />
+                  <InputField label="Tipo de Transporte" value={editedData?.transporte?.metodo ?? extractedData.transporte.metodo ?? ''} editable onChange={e => updateField('transporte.metodo', e.target.value)} />
                 </DataSection>
 
                 <DataSection title="Desglose Financiero">
-                  <InputField label={`Subtotal (${extractedData.factura.moneda})`} value={editedData?.economia?.subtotal ?? extractedData.economia.subtotal}  editable onChange={e => updateField('economia.subtotal', e.target.value)} />
-                  <InputField label={`Flete / Envío (${extractedData.factura.moneda})`} value={editedData?.economia?.envio ?? extractedData.economia.envio}  editable onChange={e => updateField('economia.envio', e.target.value)} />
-                  <InputField label={`Seguro (${extractedData.factura.moneda})`} value={editedData?.economia?.seguro ?? extractedData.economia.seguro}  editable onChange={e => updateField('economia.seguro', e.target.value)} />
-                  <InputField label={`Otros Gastos (${extractedData.factura.moneda})`} value={editedData?.economia?.otros ?? extractedData.economia.otros} editable onChange={e => updateField('economia.otros', e.target.value)} />
-                  <InputField label={`Gran Total CIF (${extractedData.factura.moneda})`} value={editedData?.economia?.total ?? extractedData.economia.total} colorClass  editable onChange={e => updateField('economia.total', e.target.value)} />
+                  <InputField label={`Subtotal (${extractedData.factura.moneda ?? ''})`} value={editedData?.economia?.subtotal ?? extractedData.economia.subtotal}  editable onChange={e => updateField('economia.subtotal', e.target.value)} />
+                  <InputField label={`Flete / Env&iacute;o (${extractedData.factura.moneda ?? ''})`} value={editedData?.economia?.envio ?? extractedData.economia.envio}  editable onChange={e => updateField('economia.envio', e.target.value)} />
+                  <InputField label={`Seguro (${extractedData.factura.moneda ?? ''})`} value={editedData?.economia?.seguro ?? extractedData.economia.seguro}  editable onChange={e => updateField('economia.seguro', e.target.value)} />
+                  <InputField label={`Otros Gastos (${extractedData.factura.moneda ?? ''})`} value={editedData?.economia?.otros ?? extractedData.economia.otros} editable onChange={e => updateField('economia.otros', e.target.value)} />
+                  <InputField label={`Gran Total CIF (${extractedData.factura.moneda ?? ''})`} value={editedData?.economia?.total ?? extractedData.economia.total} colorClass  editable onChange={e => updateField('economia.total', e.target.value)} />
                 </DataSection>
 
-                <DataSection title="Consistencia Logística">
-                  <InputField label={`Peso Bruto (${extractedData.logistica.unidad_peso})`} value={editedData?.logistica?.peso_bruto ?? extractedData.logistica.peso_bruto} editable onChange={e => updateField('logistica.peso_bruto', e.target.value)} />
-                  <InputField label={`Peso Neto (${extractedData.logistica.unidad_peso})`} value={editedData?.logistica?.peso_neto ?? extractedData.logistica.peso_neto} editable onChange={e => updateField('logistica.peso_neto', e.target.value)} />
+                <DataSection title="Consistencia Log&iacute;stica">
+                  <InputField label={`Peso Bruto (${extractedData.logistica.unidad_peso ?? ''})`} value={editedData?.logistica?.peso_bruto ?? extractedData.logistica.peso_bruto} editable onChange={e => updateField('logistica.peso_bruto', e.target.value)} />
+                  <InputField label={`Peso Neto (${extractedData.logistica.unidad_peso ?? ''})`} value={editedData?.logistica?.peso_neto ?? extractedData.logistica.peso_neto} editable onChange={e => updateField('logistica.peso_neto', e.target.value)} />
                 </DataSection>
 
-                <DataSection title="Resolución Aduanera (Sugerida)">
-                  <InputField label="Clasificación Arancelaria Predominante (HS Code)" value={editedData?.partidaPrincipal ?? extractedData.partidaPrincipal} colorClass editable onChange={e => updateField('partidaPrincipal', e.target.value)} />
+                <DataSection title="Resoluci&oacute;n Aduanera (Sugerida)">
+                  <InputField label="Clasificaci&oacute;n Arancelaria Predominante (HS Code)" value={editedData?.partidaPrincipal ?? extractedData.partidaPrincipal ?? ''} colorClass editable onChange={e => updateField('partidaPrincipal', e.target.value)} />
                 </DataSection>
 
                 <button
                   onClick={() => navigate(`/factura/${extractedData.id}/editar`, { state: { fullData: extractedData, fileUrl, prevalidacion: extractedData.prevalidacion } })}
-                  className="btn btn-primary"
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', marginTop: '8px' }}
+                  className={`btn btn-primary ${styles.navigateBtn}`}
                 >
                   <ExternalLink size={16} /> Abrir en Vista Detallada
                 </button>

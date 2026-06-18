@@ -47,6 +47,7 @@ const shortLabel = (c) => FIELD_SHORT[c.nombre] || c.nombre.replace(/_/g, ' ');
 
 const STATUS_CFG = {
   PASS: { color: v('green'), bg: 'rgba(16,185,129,0.08)', icon: CheckCircle, label: 'Aprobado' },
+  PENDIENTE: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', icon: Clock, label: 'Pendiente' },
   WARNING: { color: v('yellow'), bg: 'rgba(245,158,11,0.08)', icon: AlertCircle, label: 'Advertencia' },
   FAIL: { color: v('red'), bg: 'rgba(239,68,68,0.08)', icon: XCircle, label: 'Fallo' },
   NO_EJECUTADA: { color: '#6b7280', bg: 'rgba(107,114,128,0.05)', icon: HelpCircle, label: 'No ejecutada' },
@@ -79,7 +80,6 @@ const NIVEL_CFG = {
   CRITICO: { color: '#dc2626', bg: 'rgba(220,38,38,0.12)', icon: XCircle, label: 'Crítico' },
 };
 
-// Muestra el resultado individual de un control dentro de una etapa
 const ControlItem = ({ control }) => {
   const cfg = STATUS_CFG[control.estado] || STATUS_CFG.NO_EJECUTADA;
   const Icon = cfg.icon;
@@ -112,20 +112,17 @@ const ControlItem = ({ control }) => {
   );
 };
 
-// Pipeline de prevalidación con etapas y controles de riesgo
 const PipelinePrevalidacion = ({ prevalidacion }) => {
-  /* Etapas inician colapsadas; el agente las expande al hacer click */
+  
   const [expandedStages, setExpandedStages] = useState(new Set());
   const [showAll, setShowAll] = useState(false);
 
   if (!prevalidacion) return null;
 
-  /* Normaliza riesgo_global a mayusculas porque el backend lo devuelve en minuscula (ej: "medio") */
   const { riesgo_global: rg, puntaje_riesgo, etapas } = prevalidacion;
   const riesgo_global = rg?.toUpperCase?.() ?? 'MEDIO';
   const nivelCfg = NIVEL_CFG[riesgo_global] || NIVEL_CFG.MEDIO;
 
-  // Expande o colapsa una etapa del pipeline
   const toggleStage = (num) => {
     setExpandedStages(prev => {
       const next = new Set(prev);
@@ -135,7 +132,6 @@ const PipelinePrevalidacion = ({ prevalidacion }) => {
     });
   };
 
-  // Expande o colapsa todas las etapas
   const toggleAll = () => {
     if (expandedStages.size === etapas.length) {
       setExpandedStages(new Set());
@@ -153,60 +149,112 @@ const PipelinePrevalidacion = ({ prevalidacion }) => {
 
   return (
     <div style={{ marginTop: '20px' }}>
-      {/* Header - Global Risk Score */}
+      
       <div style={{
-        background: nivelCfg.bg, borderRadius: '16px', padding: '20px 24px',
-        border: `1px solid ${nivelCfg.color}30`, marginBottom: '20px',
-        display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap',
+        display: 'flex', justifyContent: 'center', marginBottom: '20px',
       }}>
-        {/* Semáforo vertical: 3 luces apiladas, solo se ilumina la del nivel actual */}
-        <div style={{
-          width: '38px', flexShrink: 0,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '7px',
-          padding: '10px 8px', borderRadius: '10px',
-          background: `${nivelCfg.color}15`,
-          border: `1px solid ${nivelCfg.color}25`,
+        <div className="glass-panel" style={{
+          padding: '20px 24px',
+          display: 'flex', alignItems: 'stretch', gap: '20px',
+          width: 'fit-content',
+          borderTop: `4px solid ${nivelCfg.color}`,
         }}>
-          {['BAJO', 'MEDIO', 'ALTO'].map(nivel => {
-            const activo = riesgo_global === nivel || (nivel === 'ALTO' && riesgo_global === 'CRITICO');
-            const color = nivel === 'BAJO' ? '#22c55e' : nivel === 'MEDIO' ? '#eab308' : '#ef4444';
-            return (
-              <span key={nivel} style={{
-                width: '16px', height: '16px', borderRadius: '50%',
-                background: activo ? color : '#d1d5db',
-                opacity: activo ? 1 : 0.15,
-                transition: 'all 0.25s',
-                boxShadow: activo ? `0 0 14px ${color}B0` : 'none',
-                border: '2px solid rgba(0,0,0,0.45)',
-              }} />
-            );
-          })}
-        </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: v('text-muted'), textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Resultado de Prevalidación
-            </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: nivelCfg.color, lineHeight: 1.2 }}>
-            Riesgo {nivelCfg.label}
+          
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
+            padding: '12px 10px', borderRadius: '12px',
+            background: '#000',
+            border: '1.5px solid rgba(255,255,255,0.5)',
+            justifyContent: 'center',
+          }}>
+            {['BAJO', 'MEDIO', 'ALTO'].map(nivel => {
+              const activo = riesgo_global === nivel || (nivel === 'ALTO' && riesgo_global === 'CRITICO');
+              const color = nivel === 'BAJO' ? '#22c55e' : nivel === 'MEDIO' ? '#eab308' : '#ef4444';
+              return (
+                <div key={nivel} style={{
+                  width: '20px', height: '20px', borderRadius: '50%',
+                  background: activo
+                    ? `radial-gradient(circle at 35% 35%, ${color}dd, ${color})`
+                    : '#d1d5db',
+                  opacity: activo ? 1 : 0.2,
+                  transition: 'all 0.3s',
+                  boxShadow: activo
+                    ? `0 0 0 3px ${color}25, 0 0 20px ${color}60`
+                    : 'none',
+                  border: '1.5px solid rgba(255,255,255,0.5)',
+                  margin: '2px 0',
+                }} />
+              );
+            })}
           </div>
-          <div style={{ display: 'flex', gap: '16px', marginTop: '6px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.8rem', color: v('text-muted') }}>
-              Puntaje: <strong>{puntaje_riesgo}%</strong>
-            </span>
+          
+          <div style={{
+            borderLeft: '1px solid var(--card-border)',
+            paddingLeft: '20px',
+            display: 'flex', flexDirection: 'column', justifyContent: 'center',
+            minWidth: '280px',
+          }}>
+            <table style={{
+              borderCollapse: 'collapse', width: '100%',
+              fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+              border: '1px solid #cbd5e1',
+            }}>
+              <thead>
+                <tr>
+                  <th colSpan={2} style={{
+                    fontSize: '0.75rem', fontWeight: 700, color: v('text-main'),
+                    textTransform: 'uppercase', letterSpacing: '0.05em',
+                    padding: '8px 12px', textAlign: 'center',
+                    borderBottom: '1px solid #cbd5e1',
+                    background: `${nivelCfg.color}10`,
+                  }}>
+                    Resultado de Prevalidación
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ fontWeight: 700, fontSize: '0.8rem', color: v('text-main'), padding: '8px 12px', whiteSpace: 'nowrap', borderBottom: '1px solid #cbd5e1', borderRight: '1px solid #cbd5e1', width: '1px' }}>
+                    Puntaje
+                  </td>
+                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #cbd5e1' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        flex: 1, height: '10px', borderRadius: '5px',
+                        background: '#22c55e', overflow: 'hidden', position: 'relative',
+                      }}>
+                        <div style={{
+                          width: `${puntaje_riesgo}%`, height: '100%', borderRadius: '5px',
+                          background: '#ef4444',
+                          transition: 'width 0.5s',
+                        }} />
+                      </div>
+                      <span style={{
+                        fontSize: '0.8rem', fontWeight: 700, color: puntaje_riesgo <= 10 ? '#22c55e' : puntaje_riesgo <= 30 ? '#eab308' : puntaje_riesgo <= 65 ? '#f97316' : '#ef4444',
+                        whiteSpace: 'nowrap', minWidth: '40px', textAlign: 'right',
+                      }}>{puntaje_riesgo}%</span>
+                    </div>
+                  </td>
+                </tr>
+                {(() => {
+                  const fails = hallazgos.filter(h => h.estado === 'FAIL' && h.nombre !== 'scoring_final');
+                  return fails.length > 0 ? (
+                    <tr>
+                      <td style={{ fontWeight: 700, fontSize: '0.8rem', color: v('text-main'), padding: '8px 12px', whiteSpace: 'nowrap', borderRight: '1px solid #cbd5e1', verticalAlign: 'top', width: '1px' }}>
+                        Falta
+                      </td>
+                      <td style={{ fontSize: '0.8rem', color: v('text-main'), padding: '8px 12px' }}>
+                        {fails.map(shortLabel).join(', ')}
+                      </td>
+                    </tr>
+                  ) : null;
+                })()}
+              </tbody>
+            </table>
           </div>
-          {(() => {
-            const fails = hallazgos.filter(h => h.estado === 'FAIL' && h.nombre !== 'scoring_final');
-            return fails.length > 0 ? (
-              <div style={{ marginTop: '10px', fontSize: '0.8rem', color: v('red'), display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-                <span style={{ fontWeight: 700, flexShrink: 0 }}>Falta:</span>
-                <span>{fails.map(shortLabel).join(', ')}</span>
-              </div>
-            ) : null;
-          })()}
         </div>
       </div>
 
-      {/* Toggle controls */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
         <span style={{ fontSize: '0.75rem', fontWeight: 700, color: v('text-muted') }}>
           Pipeline de Validación ({etapas.length} etapas)
@@ -232,7 +280,6 @@ const PipelinePrevalidacion = ({ prevalidacion }) => {
         </button>
       </div>
 
-      {/* Stages */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {filteredEtapas.map(etapa => {
           const StageIcon = STAGE_ICONS[etapa.numero] || Shield;
@@ -244,7 +291,7 @@ const PipelinePrevalidacion = ({ prevalidacion }) => {
           return (
             <div key={etapa.numero} className="glass-panel" style={{
               padding: 0, overflow: 'hidden',
-              border: `1px solid ${etapa.estado === 'FAIL' ? v('red') + '40' : etapa.estado === 'WARNING' ? v('yellow') + '40' : v('card-border')}`,
+              border: `1px solid ${etapa.estado === 'FAIL' ? v('red') + '40' : etapa.estado === 'PENDIENTE' ? '#8b5cf640' : etapa.estado === 'WARNING' ? v('yellow') + '40' : v('card-border')}`,
               opacity: etapa.controles.length === 0 ? 0.5 : 1,
             }}>
               <button onClick={() => toggleStage(etapa.numero)}
@@ -272,9 +319,15 @@ const PipelinePrevalidacion = ({ prevalidacion }) => {
                   {(() => {
                     const f = etapa.controles.filter(c => c.estado === 'FAIL' && c.nombre !== 'scoring_final');
                     const w = etapa.controles.filter(c => c.estado === 'WARNING');
+                    const p = etapa.controles.filter(c => c.estado === 'PENDIENTE');
                     if (f.length > 0) {
                       return <span style={{ fontSize: '0.65rem', color: v('red'), fontWeight: 600, background: 'rgba(239,68,68,0.08)', padding: '2px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
                         ✗ {f.map(shortLabel).join(', ')}
+                      </span>;
+                    }
+                    if (p.length > 0) {
+                      return <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 600, background: 'rgba(139,92,246,0.08)', padding: '2px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                        ◷ {p.map(shortLabel).join(', ')}
                       </span>;
                     }
                     if (w.length > 0) {
@@ -287,6 +340,16 @@ const PipelinePrevalidacion = ({ prevalidacion }) => {
                     }
                     return null;
                   })()}
+                  {etapa.contribucion > 0 && etapa.estado !== 'PENDIENTE' && (
+                    <span style={{
+                      fontSize: '0.7rem', fontWeight: 700, whiteSpace: 'nowrap',
+                      color: etapa.contribucion >= 10 ? v('red') : v('yellow'),
+                      background: etapa.contribucion >= 10 ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+                      padding: '2px 7px', borderRadius: '4px',
+                    }}>
+                      +{etapa.contribucion}%
+                    </span>
+                  )}
                   <Icon size={16} color={cfg.color} />
                   {expanded ? <ChevronUp size={14} color={v('text-muted')} /> : <ChevronDown size={14} color={v('text-muted')} />}
                 </div>

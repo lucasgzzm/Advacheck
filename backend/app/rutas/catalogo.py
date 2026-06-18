@@ -12,7 +12,6 @@ router = APIRouter(prefix="/api/catalogo", tags=["Catalogo Arancelario"])
 
 @router.get("/arancel", status_code=status.HTTP_200_OK)
 async def obtener_catalogo_arancelario():
-    """Devuelve el catálogo arancelario completo desde el archivo JSON."""
     ruta_archivo = os.path.join(os.path.dirname(__file__), "..", "datos_arancel.json")
     try:
         with open(ruta_archivo, "r", encoding="utf-8") as f:
@@ -21,16 +20,12 @@ async def obtener_catalogo_arancelario():
     except Exception as e:
         raise HTTPException(status_code=500, detail="Error leyendo el catálogo arancelario")
 
-
 @router.post("/partidas", status_code=status.HTTP_201_CREATED)
 async def registrar_partida(
     partida: esquemas.CatalogoPartidaCreate,
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Guarda o actualiza la clasificacion arancelaria de un producto.
-    Si ya existe una entrada parecida, solo incrementa su frecuencia de uso.
-    """
     resultado = await db.execute(
         select(modelos.CatalogoPartida).filter(
             modelos.CatalogoPartida.descripcion_producto.ilike(

@@ -1,0 +1,385 @@
+.pageContainer {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.modalContent {
+  width: 100%;
+  max-width: 400px;
+  padding: 32px;
+  background: var(--card-bg);
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.modalIconCircle {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modalIconCenter {
+  margin: 0 auto 20px auto;
+}
+
+.modalTitle {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text-main);
+}
+
+.modalDesc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.modalActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.btnCancel {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.btnDanger {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  background: var(--red);
+  color: white;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.btnDanger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btnPrimaryModal {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  background: var(--primary);
+  color: white;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.headerSection {
+  margin-bottom: 24px;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.headerTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.headerIconBox {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pageTitle {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-main);
+  letter-spacing: -0.3px;
+}
+
+.pageSubtitle {
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-size: 0.85rem;
+}
+
+.refreshBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filterBar {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--card-border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.searchWrapper {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.searchInput {
+  width: 100%;
+  padding-left: 36px;
+  font-size: 0.9rem;
+}
+
+.clearBtn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.resultCount {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.filterChips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filterChip {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.filterChipActive {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.filterChipInactive {
+  background: transparent;
+  border-color: var(--card-border);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.loadingState {
+  padding: 60px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.errorState {
+  padding: 40px;
+  text-align: center;
+  color: var(--red);
+}
+
+.emptyState {
+  padding: 60px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.emptyIcon {
+  margin-bottom: 12px;
+  opacity: 0.2;
+}
+
+.emptyTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text-main);
+}
+
+.emptyText {
+  font-size: 0.82rem;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.tableHead th {
+  padding: 14px 16px;
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.tableHead tr {
+  border-bottom: 2px solid var(--card-border);
+}
+
+.tableCell {
+  padding: 14px 16px;
+}
+
+.tableCellMuted {
+  padding: 14px 16px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+
+.tableCellBold {
+  padding: 14px 16px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.tableCellCenter {
+  padding: 14px 16px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.docNameCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.docIcon {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.docName {
+  word-break: break-word;
+}
+
+.proveedorItalic {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.actionBtnDefault {
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.actionBtnRed {
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.06);
+  color: var(--red);
+}
+
+.actionBtnGreen {
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  background: rgba(16, 185, 129, 0.06);
+  color: var(--green);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.actionBtnGap {
+  margin-right: 6px;
+}
+
+.modalTextCenter {
+  text-align: center;
+}
+
+.lockIconRed {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.lockIconGreen {
+  background: rgba(16, 185, 129, 0.1);
+}

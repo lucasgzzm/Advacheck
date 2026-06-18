@@ -2,7 +2,8 @@
 import { API_BASE } from '../servicios/api';
 import { Activity, Search, RefreshCw, Clock, User, ShieldCheck, Trash2, FileCheck, LogIn, Shield } from 'lucide-react';
 
-// Configuración de badges por tipo de acción — fácil de extender
+import styles from '../../css/LogAuditoria.module.css';
+
 const ACTION_CONFIG = {
   'Inicio de Sesion':               { color: 'var(--primary)',  bg: 'rgba(59,130,246,0.1)',   icon: LogIn },
   'Analisis de Documento':          { color: '#8b5cf6',         bg: 'rgba(139,92,246,0.1)',   icon: Activity },
@@ -15,7 +16,6 @@ const ACTION_CONFIG = {
 
 const DEFAULT_CONFIG = { color: 'var(--text-muted)', bg: 'rgba(0,0,0,0.05)', icon: Activity };
 
-// Renderiza una insignia con ícono y color según el tipo de acción de auditoría
 const ActionBadge = ({ accion }) => {
   const cfg = ACTION_CONFIG[accion] || DEFAULT_CONFIG;
   const Icon = cfg.icon;
@@ -32,7 +32,6 @@ const ActionBadge = ({ accion }) => {
   );
 };
 
-// Componente principal: bitácora de auditoría con filtros, búsqueda y paginación
 const AuditLog = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +41,6 @@ const AuditLog = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
-  // Obtiene los registros de auditoría desde el servidor
   const fetchLogs = async () => {
     try {
       setLoading(true);
@@ -66,7 +64,6 @@ const AuditLog = () => {
 
   useEffect(() => { fetchLogs(); }, []);
 
-  // Lista única de acciones para el filtro
   const accionesUnicas = useMemo(() =>
     [...new Set(logs.map(l => l.accion))].sort(),
     [logs]
@@ -81,7 +78,6 @@ const AuditLog = () => {
     return matchSearch && matchFilter;
   }), [logs, searchTerm, filterAccion]);
 
-  // Resetear paginación al filtrar
   useEffect(() => { setCurrentPage(1); }, [searchTerm, filterAccion]);
 
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage) || 1;
@@ -91,15 +87,19 @@ const AuditLog = () => {
   }, [filteredLogs, currentPage]);
 
   return (
-    <div className="fade-in">
-      {/* ── Encabezado ────────────────────────────────── */}
-      <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px' }}>
+    <div className={`fade-in ${styles.pageContainer}`}>
+      
+      <header className={styles.headerSection}>
         <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-1px', margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Activity size={32} color="var(--primary)" />
-            Trazabilidad y Auditoría
+          <h1 className={styles.pageTitle}>
+            <div className={styles.headerTitleGroup}>
+              <div className={styles.headerIconBox}>
+                <Activity size={20} color="var(--primary)" />
+              </div>
+              Trazabilidad y Auditoría
+            </div>
           </h1>
-          <p style={{ color: 'var(--text-muted)', marginTop: '8px', fontSize: '1.05rem' }}>
+          <p className={styles.pageSubtitle}>
             Bitácora inmutable de todas las acciones realizadas en la plataforma.
           </p>
         </div>
@@ -109,59 +109,52 @@ const AuditLog = () => {
         </button>
       </header>
 
-      {/* ── Tabla principal ────────────────────────────── */}
       <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
 
-        {/* Barra de filtros */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', backgroundColor: 'rgba(0,0,0,0.02)' }}>
-          {/* Buscador */}
-          <div style={{ position: 'relative', flex: '1', minWidth: '220px', maxWidth: '380px' }}>
-            <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+        <div className={styles.filterBar}>
+          
+          <div className={styles.searchWrapper}>
+            <Search size={16} color="var(--text-muted)" className={styles.searchIcon} />
             <input
               type="text"
               placeholder="Buscar usuario, acción, detalles..."
-              className="form-input"
+              className={`form-input ${styles.searchInput}`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ width: '100%', paddingLeft: '38px', fontSize: '0.9rem' }}
             />
           </div>
 
-          {/* Filtro por tipo de acción */}
           <select
-            className="form-input"
+            className={`form-input ${styles.filterSelect}`}
             value={filterAccion}
             onChange={(e) => setFilterAccion(e.target.value)}
-            style={{ fontSize: '0.9rem', minWidth: '200px', flex: '0 0 auto' }}
           >
             <option value="">Todas las acciones</option>
             {accionesUnicas.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
 
-          {/* Contador */}
-          <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+          <span className={styles.eventCount}>
             {filteredLogs.length} evento{filteredLogs.length !== 1 ? 's' : ''}
           </span>
         </div>
 
-        {/* Contenido */}
         {loading ? (
-          <div style={{ padding: '60px', textAlign: 'center' }}>
+          <div className={styles.loadingState}>
             <RefreshCw size={32} color="var(--primary)" style={{ animation: 'spin 1s linear infinite' }} />
-            <p style={{ marginTop: '16px', color: 'var(--text-muted)' }}>Cargando bitácora...</p>
+            <p className={styles.loadingText}>Cargando bitácora...</p>
           </div>
         ) : error ? (
-          <div style={{ padding: '48px', textAlign: 'center', color: 'var(--red)' }}>
-            <p style={{ fontWeight: 600, marginBottom: '8px' }}>No se pudo cargar la auditoría</p>
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{error}</p>
+          <div className={styles.errorState}>
+            <p className={styles.errorTitle}>No se pudo cargar la auditoría</p>
+            <p className={styles.errorDetail}>{error}</p>
             <button onClick={fetchLogs} className="btn btn-primary" style={{ marginTop: '16px' }}>
               <RefreshCw size={16} /> Reintentar
             </button>
           </div>
         ) : filteredLogs.length === 0 ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            <Activity size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
-            <p style={{ fontWeight: 600 }}>No hay eventos que coincidan con los filtros.</p>
+          <div className={styles.emptyState}>
+            <Activity size={48} className={styles.emptyIcon} />
+            <p className={styles.emptyTitle}>No hay eventos que coincidan con los filtros.</p>
             {(searchTerm || filterAccion) && (
               <button onClick={() => { setSearchTerm(''); setFilterAccion(''); }} className="btn btn-secondary" style={{ marginTop: '12px' }}>
                 Limpiar filtros
@@ -169,54 +162,49 @@ const AuditLog = () => {
             )}
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)', borderBottom: '2px solid var(--card-border)' }}>
-                  <th style={{ padding: '14px 24px', fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>Fecha y Hora</th>
-                  <th style={{ padding: '14px 24px', fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>Analista</th>
-                  <th style={{ padding: '14px 24px', fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>Tipo de Acción</th>
-                  <th style={{ padding: '14px 24px', fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Detalles del Evento</th>
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead className={styles.tableHead}>
+                <tr>
+                  <th className={styles.tableHeaderCell}>Fecha y Hora</th>
+                  <th className={styles.tableHeaderCell}>Analista</th>
+                  <th className={styles.tableHeaderCell}>Tipo de Acción</th>
+                  <th className={styles.tableHeaderCell}>Detalles del Evento</th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedLogs.map((log) => (
-                  <tr
-                    key={log.id}
-                    style={{ borderBottom: '1px solid var(--card-border)', transition: 'background-color 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--primary-light)'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    {/* Fecha */}
-                    <td style={{ padding: '14px 24px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                {paginatedLogs.map((log, i) => (
+                  <tr key={log.id} className={styles.tableRow} style={{
+                    borderBottom: '1px solid var(--card-border)',
+                    background: i % 2 === 0 ? 'rgba(0,0,0,0.02)' : 'transparent',
+                  }}>
+                    
+                    <td className={`${styles.tableCell} ${styles.dateCell}`}>
+                      <div className={styles.dateGroup}>
                         <Clock size={14} />
                         {new Date(log.fecha_accion).toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' })}
-                        <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                        <span className={styles.timePart}>
                           {new Date(log.fecha_accion).toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}
                         </span>
                       </div>
                     </td>
 
-                    {/* Usuario */}
-                    <td style={{ padding: '14px 24px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <td className={`${styles.tableCell} ${styles.analystCell}`}>
+                      <div className={styles.analystGroup}>
+                        <div className={styles.analystAvatar}>
                           <User size={14} color="var(--primary)" />
                         </div>
-                        <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                        <span className={styles.analystName}>
                           {log.usuario_nombre}
                         </span>
                       </div>
                     </td>
 
-                    {/* Acción (badge) */}
-                    <td style={{ padding: '14px 24px', verticalAlign: 'middle' }}>
+                    <td className={styles.tableCell}>
                       <ActionBadge accion={log.accion} />
                     </td>
 
-                    {/* Detalles */}
-                    <td style={{ padding: '14px 24px', verticalAlign: 'middle', fontSize: '0.88rem', color: 'var(--text-muted)', maxWidth: '420px' }}>
+                    <td className={`${styles.tableCell} ${styles.detailsCell}`}>
                       {log.detalles || '—'}
                     </td>
                   </tr>
@@ -226,13 +214,12 @@ const AuditLog = () => {
           </div>
         )}
 
-        {/* ── Controles de Paginación ────────────────────── */}
         {!loading && !error && filteredLogs.length > itemsPerPage && (
-          <div style={{ padding: '16px 24px', borderTop: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-color)' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          <div className={styles.paginationBar}>
+            <span className={styles.paginationInfo}>
               Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filteredLogs.length)} de {filteredLogs.length} eventos
             </span>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div className={styles.paginationControls}>
               <button 
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
                 disabled={currentPage === 1}
@@ -240,7 +227,7 @@ const AuditLog = () => {
               >
                 Anterior
               </button>
-              <span style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: '0.9rem', fontWeight: 600 }}>
+              <span className={styles.pageIndicator}>
                 {currentPage} / {totalPages}
               </span>
               <button 

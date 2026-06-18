@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import logging
 import os
 import uuid
@@ -10,14 +11,16 @@ from .. import esquemas, modelos
 from ..base_datos import get_db
 from ..dependencias import obtener_usuario_actual
 from ..configuracion import UPLOAD_DIR
-from ..services.servicio_extraccion import ExtractorService
-from ..services.servicio_texto import AITextService
-from ..services.servicio_prevalidacion import ServicioPrevalidacionAduanera, evaluar_confianza_extraccion, verificar_cuadratura_items
+from ..servicios.servicio_extraccion import ExtractorService
+from ..servicios.servicio_texto import AITextService
+from ..servicios.servicio_prevalidacion import ServicioPrevalidacionAduanera, evaluar_confianza_extraccion, verificar_cuadratura_items
+from ..servicios.servicio_ocr import OCRService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/facturas", tags=["Facturas"])
 
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 
 @router.post("/scan")
 async def escanear_factura_pdf(
@@ -26,20 +29,22 @@ async def escanear_factura_pdf(
     db: AsyncSession = Depends(get_db),
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Procesa un PDF de factura: extrae los datos con IA, evalua el riesgo,
-    ejecuta las 7 etapas de prevalidacion, y guarda el resultado en la base de datos.
-    """
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     from sqlalchemy import func, and_, select
 
-    if not file.filename.endswith(".pdf"):
+    if not file.filename or not file.filename.endswith(".pdf"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Solo se admiten archivos PDF.",
         )
 
-    # Verifica si ya existe un documento con el mismo nombre y usuario en las últimas 24h
-    hora_hace_24h = datetime.utcnow() - timedelta(hours=24)
+    if file.content_type and file.content_type not in ["application/pdf", "application/octet-stream"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo debe ser un PDF valido.",
+        )
+
+    hora_hace_24h = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=24)
     resultado_dup = await db.execute(
         select(modelos.DocumentoProcesado.id)
         .where(and_(
@@ -56,7 +61,7 @@ async def escanear_factura_pdf(
             detail=f"Ya existe un análisis para '{file.filename}' (ID: {doc_existente}). Abre el documento existente desde tu historial.",
         )
 
-    hora_hace_60_min = datetime.utcnow() - timedelta(hours=1)
+    hora_hace_60_min = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
     resultado_limite = await db.execute(
         select(func.count())
         .select_from(modelos.DocumentoProcesado)
@@ -71,13 +76,45 @@ async def escanear_factura_pdf(
 
     try:
         contenido = await file.read()
-        datos_extraidos = await ExtractorService.extract_from_pdf(contenido)
+        if len(contenido) > MAX_UPLOAD_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo excede el limite de {MAX_UPLOAD_SIZE // (1024 * 1024)}MB.",
+            )
+        hash_pdf = hashlib.sha256(contenido).hexdigest()
+
+        cache_hit = False
+        doc_cacheado = None
+        if hash_pdf:
+            resultado_cache = await db.execute(
+                select(modelos.DocumentoProcesado)
+                .where(and_(
+                    modelos.DocumentoProcesado.hash_pdf == hash_pdf,
+                    modelos.DocumentoProcesado.usuario_id == usuario_actual.id,
+                ))
+                .limit(1)
+            )
+            doc_cacheado = resultado_cache.scalar_one_or_none()
+            if doc_cacheado and doc_cacheado.datos_originales:
+                cache_hit = True
+                logger.info(f"Cache HIT para hash {hash_pdf[:12]}... (doc {doc_cacheado.id})")
+
+        if cache_hit:
+            datos_extraidos = copy.deepcopy(doc_cacheado.datos_originales)
+            evaluacion_dict = copy.deepcopy(doc_cacheado.prevalidacion_resultado) if doc_cacheado.prevalidacion_resultado else None
+        else:
+            datos_extraidos = await ExtractorService.extract_from_pdf(contenido)
+
+        datos_extraidos.setdefault("emisor", {})
+        datos_extraidos.setdefault("receptor", {})
+        datos_extraidos.setdefault("detalles", [])
+        datos_extraidos.setdefault("pesos", {})
 
         factura_mock = esquemas.FacturaCreate(
-            numero_factura=datos_extraidos.get("numero_factura", "N/A"),
+            numero_factura=datos_extraidos.get("numero_factura"),
             fecha_emision=None,
             monto_total=datos_extraidos.get("monto_total_cif", 0.0),
-            moneda=datos_extraidos.get("moneda", "USD"),
+            moneda=datos_extraidos.get("moneda"),
             incoterm=datos_extraidos.get("incoterm"),
             pais_origen=datos_extraidos.get("pais_origen"),
             monto_subtotal=datos_extraidos.get("monto_subtotal", 0.0),
@@ -86,7 +123,7 @@ async def escanear_factura_pdf(
             monto_otros_gastos=datos_extraidos.get("monto_otros_gastos", 0.0),
             peso_bruto=datos_extraidos.get("pesos", {}).get("bruto", 0.0),
             peso_neto=datos_extraidos.get("pesos", {}).get("neto", 0.0),
-            emisor_nombre=datos_extraidos.get("emisor", {}).get("nombre", "Desconocido"),
+            emisor_nombre=datos_extraidos.get("emisor", {}).get("nombre"),
             emisor_tax_id=datos_extraidos.get("emisor", {}).get("tax_id"),
             receptor_nombre=datos_extraidos.get("receptor", {}).get("nombre"),
             receptor_tax_id=datos_extraidos.get("receptor", {}).get("tax_id"),
@@ -101,18 +138,48 @@ async def escanear_factura_pdf(
             ],
         )
 
-        # Ejecuta el motor de prevalidacion (7 etapas) y guarda el resultado completo
-        evaluacion_dict = ServicioPrevalidacionAduanera.ejecutar(datos_extraidos)
+        if not cache_hit:
+            packing_list = datos_extraidos.get("_packing_list")
+            bl_data = datos_extraidos.get("_bl_data")
+            evaluacion_dict = ServicioPrevalidacionAduanera.ejecutar(
+                datos_extraidos,
+                packing_list=packing_list,
+                bl=bl_data,
+            )
 
-        # Extrae los mensajes de los controles que fallaron o advirtieron
-        fallas = []
-        for etapa in evaluacion_dict.get("etapas", []):
-            for control in etapa.get("controles", []):
-                if control["estado"] in ("FAIL", "WARNING") and control["nombre"] != "scoring_final":
-                    fallas.append(control['mensaje'])
-        eval_observaciones = " | ".join(fallas) if fallas else "Sin observaciones"
+        _confianza_detalle = evaluar_confianza_extraccion(datos_extraidos)
+        _puntajes = [v for v in _confianza_detalle.values() if isinstance(v, (int, float))]
+        _promedio = sum(_puntajes) / len(_puntajes) if _puntajes else 0
+        _campos_criticos = sorted(
+            [{"campo": k, "puntaje": v} for k, v in _confianza_detalle.items() if v < 60],
+            key=lambda x: x["puntaje"],
+        )
 
-        nivel_riesgo_general = evaluacion_dict.get("riesgo_global", "BAJO")
+        if _promedio >= 80 and not _campos_criticos:
+            _nivel_confianza = "ALTA"
+        elif _promedio >= 50:
+            _nivel_confianza = "MEDIA"
+        else:
+            _nivel_confianza = "BAJA"
+
+        confianza_general = {
+            "nivel": _nivel_confianza,
+            "promedio": round(_promedio, 1),
+            "campos_criticos": _campos_criticos,
+            "detalle": _confianza_detalle,
+        }
+
+        if evaluacion_dict:
+            fallas = []
+            for etapa in evaluacion_dict.get("etapas", []):
+                for control in etapa.get("controles", []):
+                    if control["estado"] in ("FAIL", "WARNING") and control["nombre"] != "scoring_final":
+                        fallas.append(control['mensaje'])
+            eval_observaciones = " | ".join(fallas) if fallas else "Sin observaciones"
+            nivel_riesgo_general = evaluacion_dict.get("riesgo_global", "BAJO")
+        else:
+            eval_observaciones = "Sin observaciones"
+            nivel_riesgo_general = "BAJO"
 
         items_evaluados = []
         for d in datos_extraidos["detalles"]:
@@ -121,12 +188,12 @@ async def escanear_factura_pdf(
                     "descripcion_producto": d["descripcion_producto"],
                     "cantidad": d["cantidad"],
                     "precio_unitario": d["precio_unitario"],
-                    "partida_sugerida": d.get("partida_arancelaria_sugerida", "0000.00.00.00"),
+                    "partida_sugerida": d.get("partida_arancelaria_sugerida"),
                 }
             )
 
-        doc_id = None
-        if guardar:
+        doc_id = doc_cacheado.id if cache_hit else None
+        if guardar and not cache_hit:
             try:
                 ruta_rel = None
                 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -137,14 +204,14 @@ async def escanear_factura_pdf(
                     f.write(contenido)
                 ruta_rel = nombre_archivo_bd
 
-                # Toma una copia de los datos extraídos por la IA para guardarlos
-                # como referencia original y poder detectar cambios del usuario
                 datos_originales = copy.deepcopy(datos_extraidos)
 
                 nuevo_log = modelos.DocumentoProcesado(
+                    hash_pdf=hash_pdf,
                     nombre_archivo=file.filename,
-                    proveedor=datos_extraidos["emisor"].get("nombre", "Desconocido"),
-                    cliente=datos_extraidos["receptor"].get("nombre", "Importador"),
+                    proveedor=datos_extraidos["emisor"].get("nombre"),
+                    cliente=datos_extraidos["receptor"].get("nombre"),
+                    receptor_tax=datos_extraidos["receptor"].get("tax_id"),
                     total_cif=datos_extraidos.get("monto_total_cif", 0),
                     flete=datos_extraidos.get("monto_flete", 0),
                     seguro=datos_extraidos.get("monto_seguro", 0),
@@ -154,24 +221,23 @@ async def escanear_factura_pdf(
                     ruta_archivo=ruta_rel,
                     datos_originales=datos_originales,
                     prevalidacion_resultado=evaluacion_dict,
-                    # Campos extra extraídos por OCR
                     fecha_emision=datos_extraidos.get("fecha_emision"),
-                    moneda=datos_extraidos.get("moneda", "USD"),
+                    moneda=datos_extraidos.get("moneda"),
                     monto_subtotal=datos_extraidos.get("monto_subtotal", 0),
-                    remitente_dir=datos_extraidos["emisor"].get("direccion", ""),
-                    remitente_doc=datos_extraidos["emisor"].get("tax_id", ""),
-                    destinatario_dir=datos_extraidos["receptor"].get("direccion", ""),
-                    transporte_pais=datos_extraidos["emisor"].get("pais", ""),
-                    transporte_metodo=datos_extraidos.get("transporte_metodo", "No detectado"),
+                    remitente_dir=datos_extraidos["emisor"].get("direccion"),
+                    remitente_doc=datos_extraidos["emisor"].get("tax_id"),
+                    destinatario_dir=datos_extraidos["receptor"].get("direccion"),
+                    transporte_pais=datos_extraidos["emisor"].get("pais"),
+                    transporte_metodo=datos_extraidos.get("transporte_metodo"),
                     peso_bruto=datos_extraidos.get("pesos", {}).get("bruto", 0),
                     peso_neto=datos_extraidos.get("pesos", {}).get("neto", 0),
-                    numero_factura=datos_extraidos.get("numero_factura", "N/A"),
+                    numero_factura=datos_extraidos.get("numero_factura"),
                     incoterm=datos_extraidos.get("incoterm"),
                     pais_origen=datos_extraidos.get("pais_origen"),
                 )
                 db.add(nuevo_log)
 
-                from ..services.servicio_auditoria import registrar_auditoria
+                from ..servicios.servicio_auditoria import registrar_auditoria
                 await registrar_auditoria(db, usuario_actual.id, "Analisis de Documento", f"Extraccion y evaluacion de riesgo para '{file.filename}'.")
 
                 await db.flush()
@@ -193,17 +259,22 @@ async def escanear_factura_pdf(
             except Exception as error_db:
                 print(f"Error guardando historial en BD: {str(error_db)}")
 
+        ai_usage = datos_extraidos.get("_ai_metadata")
+        if ai_usage:
+            ai_usage["cache_hit"] = cache_hit
+
         return {
             "id": doc_id,
+            "cache_hit": cache_hit,
             "remitente": {
-                "nombre": datos_extraidos["emisor"].get("nombre", "No detectado"),
-                "direccion": datos_extraidos["emisor"].get("direccion", "No detectada"),
-                "documento": datos_extraidos["emisor"].get("tax_id", "No detectado"),
+                "nombre": datos_extraidos["emisor"].get("nombre"),
+                "direccion": datos_extraidos["emisor"].get("direccion"),
+                "documento": datos_extraidos["emisor"].get("tax_id"),
             },
             "destinatario": {
-                "nombre": datos_extraidos["receptor"].get("nombre", "Importador"),
-                "direccion": datos_extraidos["receptor"].get("direccion", "No detectada"),
-                "documento": datos_extraidos["receptor"].get("tax_id", "No detectado"),
+                "nombre": datos_extraidos["receptor"].get("nombre"),
+                "direccion": datos_extraidos["receptor"].get("direccion"),
+                "documento": datos_extraidos["receptor"].get("tax_id"),
             },
             "factura": {
                 "numero": datos_extraidos["numero_factura"],
@@ -213,10 +284,10 @@ async def escanear_factura_pdf(
                 "pais_origen": datos_extraidos.get("pais_origen"),
             },
             "transporte": {
-                "paisOrigen": datos_extraidos["emisor"].get("pais", "No detectado"),
-                "metodo": "No detectado",
-                "courier": "No detectado",
-                "tracking": "No detectado",
+                "paisOrigen": datos_extraidos["emisor"].get("pais"),
+                "metodo": datos_extraidos.get("transporte_metodo"),
+                "courier": None,
+                "tracking": None,
             },
             "economia": {
                 "total": datos_extraidos.get("monto_total_cif", 0),
@@ -228,38 +299,34 @@ async def escanear_factura_pdf(
             "logistica": {
                 "peso_bruto": datos_extraidos.get("pesos", {}).get("bruto", 0),
                 "peso_neto": datos_extraidos.get("pesos", {}).get("neto", 0),
-                "unidad_peso": datos_extraidos.get("pesos", {}).get("unidad", "kg"),
+                "unidad_peso": datos_extraidos.get("pesos", {}).get("unidad"),
             },
             "riesgo": nivel_riesgo_general,
             "observaciones": eval_observaciones,
             "prevalidacion": evaluacion_dict,
-            "partidaPrincipal": items_evaluados[0]["partida_sugerida"] if items_evaluados else "No detectada",
+            "partidaPrincipal": items_evaluados[0]["partida_sugerida"] if items_evaluados else None,
             "detalles": items_evaluados,
             "validacion_error": datos_extraidos.get("validacion_error", False),
             "mensaje_error": datos_extraidos.get("mensaje_error", ""),
-            "ai_usage": datos_extraidos.get("_ai_metadata"),
-            "confianza": evaluar_confianza_extraccion(datos_extraidos),
+            "ai_usage": ai_usage,
+            "confianza": confianza_general,
             "cuadratura_items": verificar_cuadratura_items(datos_extraidos),
+            "ocr_mock_mode": OCRService.is_mock_mode(),
         }
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error procesando el PDF: {str(e)}",
+            detail="Error inesperado al procesar el documento. Revisa que el archivo sea una factura válida e inténtalo de nuevo.",
         )
-
-
 
 @router.post("/clasificar-item")
 async def clasificar_item_arancelario(
     payload: dict,
     usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
 ):
-    """Clasifica un producto en su partida arancelaria usando IA.
-    Recibe la descripcion del producto y devuelve la partida sugerida.
-    """
     descripcion = payload.get("descripcion_producto")
     if not descripcion:
         raise HTTPException(status_code=400, detail="Falta la descripcion del producto.")

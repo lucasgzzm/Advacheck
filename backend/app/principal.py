@@ -116,6 +116,8 @@ async def iniciar():
         else:
             logger.info("Usuario admin ya existe, se omite creacion.")
 
+        await db.commit()
+
 # Endpoint de salud que verifica que el servidor esta operativo
 @app.get("/", tags=["Estado"])
 async def raiz():

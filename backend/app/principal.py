@@ -79,6 +79,23 @@ async def iniciar():
             except Exception as e:
                 logger.warning("No se pudo aplicar migracion columna %s: %s", col_name, str(e))
 
+        # Migracion para tabla partidas
+        sql_partidas = """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='partidas' AND column_name='peso_neto_kg'
+                ) THEN
+                    ALTER TABLE partidas ADD COLUMN peso_neto_kg FLOAT;
+                END IF;
+            END $$;
+        """
+        try:
+            await conn.execute(text(sql_partidas))
+        except Exception as e:
+            logger.warning("No se pudo aplicar migracion columna peso_neto_kg en partidas: %s", str(e))
+
     # Crea el admin por defecto si no existe ningun usuario administrador
     async with AsyncSessionLocal() as db:
         resultado = await db.execute(

@@ -181,6 +181,7 @@ class Partida(Base):
     precio_unitario = Column(Float, nullable=True)
     partida_sugerida = Column(String(50), nullable=True)
     partida_corregida = Column(String(50), nullable=True)
+    peso_neto_kg = Column(Float, nullable=True)
     orden = Column(Integer, nullable=True)
 
     documento_rel = relationship("DocumentoProcesado", backref=backref("partidas", cascade="all, delete-orphan"))

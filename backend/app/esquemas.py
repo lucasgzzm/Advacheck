@@ -169,6 +169,7 @@ class PartidaCreate(BaseModel):
     precio_unitario: Optional[float] = None
     partida_sugerida: Optional[str] = None
     partida_corregida: Optional[str] = None
+    peso_neto_kg: Optional[float] = None
     orden: Optional[int] = None
 
 # Respuesta con datos de una partida
@@ -180,6 +181,7 @@ class PartidaResponse(BaseModel):
     precio_unitario: Optional[float] = None
     partida_sugerida: Optional[str] = None
     partida_corregida: Optional[str] = None
+    peso_neto_kg: Optional[float] = None
     orden: Optional[int] = None
 
     class Config:

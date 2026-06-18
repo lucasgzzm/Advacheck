@@ -141,6 +141,7 @@ async def actualizar_documento(
                 precio_unitario=pdata.precio_unitario,
                 partida_sugerida=pdata.partida_sugerida,
                 partida_corregida=pdata.partida_corregida,
+                peso_neto_kg=pdata.peso_neto_kg,
                 orden=pdata.orden if pdata.orden is not None else i,
             )
             db.add(partida)
@@ -210,6 +211,7 @@ async def actualizar_documento(
                 "precio_unitario": pdata.precio_unitario,
                 "partida_arancelaria_sugerida": pdata.partida_corregida or pdata.partida_sugerida,
                 "partida_arancelaria_corregida": pdata.partida_corregida,
+                "peso_neto_kg": pdata.peso_neto_kg,
                 "orden": pdata.orden if pdata.orden is not None else i,
             }
             for i, pdata in enumerate(payload.partidas or [])
@@ -220,7 +222,6 @@ async def actualizar_documento(
     bl_data = dos.get("_bl_data") if isinstance(dos, dict) else None
     evaluacion = ServicioPrevalidacionAduanera.ejecutar(factura_dict, packing_list=packing_list, bl=bl_data)
     documento.prevalidacion_resultado = evaluacion
-
     await db.commit()
     await db.refresh(documento)
     return documento
@@ -354,6 +355,7 @@ async def prevalidar_y_aprobar_documento(
                 "precio_unitario": p.precio_unitario,
                 "partida_arancelaria_sugerida": p.partida_corregida or p.partida_sugerida,
                 "partida_arancelaria_corregida": p.partida_corregida,
+                "peso_neto_kg": p.peso_neto_kg,
             }
             for p in partidas
         ],
@@ -478,6 +480,7 @@ async def validar_permiso(
                 "precio_unitario": p.precio_unitario,
                 "partida_arancelaria_sugerida": p.partida_corregida or p.partida_sugerida,
                 "partida_arancelaria_corregida": p.partida_corregida,
+                "peso_neto_kg": p.peso_neto_kg,
             }
             for p in partidas
         ],

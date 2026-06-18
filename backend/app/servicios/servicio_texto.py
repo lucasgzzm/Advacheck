@@ -297,6 +297,7 @@ Responde UNICAMENTE con un objeto JSON valido usando esta estructura:
       "cantidad": 0.0,
       "precio_unitario": 0.0,
       "valor_total_item": 0.0,
+      "peso_neto_kg": 0.0,
       "partida_arancelaria_sugerida": null
     }
   ],

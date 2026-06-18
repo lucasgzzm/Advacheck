@@ -250,6 +250,7 @@ async def escanear_factura_pdf(
                         cantidad=d["cantidad"],
                         precio_unitario=d["precio_unitario"],
                         partida_sugerida=d["partida_sugerida"],
+                        peso_neto_kg=d.get("peso_neto_kg"),
                         orden=i,
                     )
                     db.add(partida)

@@ -1153,6 +1153,7 @@ const InvoiceDetail = () => {
           precio_unitario: d.precio_unitario,
           partida_sugerida: d.partida_sugerida,
           partida_corregida: d.partida_corregida,
+          peso_neto_kg: d.peso_neto_kg,
           orden: i,
         })),
         

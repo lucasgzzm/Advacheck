@@ -92,6 +92,14 @@ async def iniciar():
             logger.info("Rol 'Administrador' creado automaticamente.")
 
         resultado = await db.execute(
+            select(modelos.Rol).filter(modelos.Rol.nombre == "Agente")
+        )
+        if not resultado.scalars().first():
+            db.add(modelos.Rol(nombre="Agente", descripcion="Usuario operador con acceso limitado"))
+            await db.flush()
+            logger.info("Rol 'Agente' creado automaticamente.")
+
+        resultado = await db.execute(
             select(modelos.Usuario).filter(modelos.Usuario.email == "admin@webcheck.com")
         )
         if not resultado.scalars().first():

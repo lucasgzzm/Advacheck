@@ -956,38 +956,38 @@ def etapa7_preclasificacion_riesgo(etapas: list[EtapaPrevalidacion]) -> EtapaPre
 
 class ServicioPrevalidacionAduanera:
     @staticmethod
-# Valida que la factura tenga los campos minimos obligatorios
-def etapa1_validacion_formal(doc: dict) -> EtapaPrevalidacion:
+    # Valida que la factura tenga los campos minimos obligatorios
+    def etapa1_validacion_formal(doc: dict) -> EtapaPrevalidacion:
         return etapa1_validacion_formal(doc)
 
     @staticmethod
-# Valida el calculo aritmetico CIF y la asignacion de partidas arancelarias
-def etapa2_validacion_cif(doc: dict) -> EtapaPrevalidacion:
+    # Valida el calculo aritmetico CIF y la asignacion de partidas arancelarias
+    def etapa2_validacion_cif(doc: dict) -> EtapaPrevalidacion:
         return etapa2_validacion_cif(doc)
 
     @staticmethod
-# Evalua requisitos regulatorios y permisos faltantes por partida arancelaria
-def etapa3_validacion_normativa(doc: dict) -> EtapaPrevalidacion:
+    # Evalua requisitos regulatorios y permisos faltantes por partida arancelaria
+    def etapa3_validacion_normativa(doc: dict) -> EtapaPrevalidacion:
         return etapa3_validacion_normativa(doc)
 
     @staticmethod
-# Cruza pesos, bultos y cantidades entre factura, packing list y BL
-def etapa4_validacion_pesos(doc: dict, packing_list: Optional[dict] = None, bl: Optional[dict] = None) -> EtapaPrevalidacion:
+    # Cruza pesos, bultos y cantidades entre factura, packing list y BL
+    def etapa4_validacion_pesos(doc: dict, packing_list: Optional[dict] = None, bl: Optional[dict] = None) -> EtapaPrevalidacion:
         return etapa4_validacion_pesos(doc, packing_list, bl)
 
     @staticmethod
-# Verifica consistencia del Incoterm, ajustes al valor aduanero y relacion comprador-vendedor
-def etapa5_validacion_valoracion(doc: dict) -> EtapaPrevalidacion:
+    # Verifica consistencia del Incoterm, ajustes al valor aduanero y relacion comprador-vendedor
+    def etapa5_validacion_valoracion(doc: dict) -> EtapaPrevalidacion:
         return etapa5_validacion_valoracion(doc)
 
     @staticmethod
-# Verifica que la factura, BL y seguro esten dentro de plazos y vigencias
-def etapa6_validacion_plazos(doc: dict, bl: Optional[dict] = None) -> EtapaPrevalidacion:
+    # Verifica que la factura, BL y seguro esten dentro de plazos y vigencias
+    def etapa6_validacion_plazos(doc: dict, bl: Optional[dict] = None) -> EtapaPrevalidacion:
         return etapa6_validacion_plazos(doc, bl)
 
     @staticmethod
-# Calcula el scoring de riesgo consolidando todas las etapas anteriores
-def etapa7_preclasificacion_riesgo(etapas: list[EtapaPrevalidacion]) -> EtapaPrevalidacion:
+    # Calcula el scoring de riesgo consolidando todas las etapas anteriores
+    def etapa7_preclasificacion_riesgo(etapas: list[EtapaPrevalidacion]) -> EtapaPrevalidacion:
         return etapa7_preclasificacion_riesgo(etapas)
 
     # Ejecuta las 7 etapas de prevalidacion en orden y retorna el resultado completo

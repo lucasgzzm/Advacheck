@@ -103,6 +103,12 @@ async def actualizar_documento(
             detail="El documento esta bloqueado y no se puede modificar.",
         )
 
+    if documento.estado == "En Espera":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="El documento esta en estado 'En Espera' y no se puede modificar. Debe reabrirse primero.",
+        )
+
     if payload.proveedor is not None:
         documento.proveedor = payload.proveedor
     if payload.cliente is not None:
@@ -256,6 +262,12 @@ async def aprobar_documento(
             detail="El documento esta bloqueado y no se puede aprobar.",
         )
 
+    if documento.estado == "En Espera":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="El documento esta en estado 'En Espera' y no se puede aprobar. Debe reabrirse primero.",
+        )
+
     if payload.nuevo_total is not None:
         documento.total_cif = payload.nuevo_total
 
@@ -291,6 +303,12 @@ async def prevalidar_y_aprobar_documento(
             status_code=409,
             detail=f"El documento ya esta bloqueado en estado '{documento.estado}'. "
                    "No se puede modificar.",
+        )
+
+    if documento.estado == "En Espera":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="El documento esta en estado 'En Espera' y no se puede prevalidar. Debe reabrirse primero.",
         )
 
     rol = await obtener_rol_usuario(usuario_actual, db)
@@ -670,6 +688,46 @@ async def solicitar_aclaracion_cliente(
         "estado": "En Espera",
         "correo_enviado": correo_enviado,
     }
+
+# Reabre un documento que esta en estado 'En Espera' y lo devuelve a 'En Revision'
+@router.put("/{documento_id:int}/reabrir")
+async def reabrir_documento(
+    documento_id: int,
+    db: AsyncSession = Depends(get_db),
+    usuario_actual: modelos.Usuario = Depends(obtener_usuario_actual),
+):
+    documento = await obtener_documento_seguro(documento_id, usuario_actual, db)
+
+    if documento.bloqueado:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="El documento esta bloqueado y no se puede reabrir.",
+        )
+
+    if documento.estado != "En Espera":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El documento no se encuentra en estado 'En Espera'.",
+        )
+
+    documento.estado = "En Revision"
+
+    observacion = modelos.Observacion(
+        contenido="Documento reabierto desde 'En Espera'.",
+        tipo="info",
+        documento_id=documento_id,
+        usuario_id=usuario_actual.id,
+    )
+    db.add(observacion)
+
+    await registrar_auditoria(
+        db, usuario_actual.id, "Reapertura de Documento",
+        f"Documento '{documento.nombre_archivo}' (ID: {documento.id}) reabierto desde 'En Espera' a 'En Revision'."
+    )
+
+    await db.commit()
+
+    return {"mensaje": "Documento reabierto correctamente, ahora esta en estado 'En Revision'.", "estado": documento.estado}
 
 # Alertas activas del usuario (V°B° pendientes)
 @router.get("/alertas")

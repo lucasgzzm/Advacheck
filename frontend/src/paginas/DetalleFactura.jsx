@@ -5,7 +5,7 @@ import {
   AlertCircle, AlertTriangle, CheckCircle, Save, XCircle, ArrowLeft, Download,
   ShieldAlert, Shield, Loader2, Calculator, FileText,
   Globe, Send, MessageSquare, Scan, Mail,
-  DollarSign, MapPin, Package, Truck, UserCheck, Flag, Lock,
+  DollarSign, MapPin, Package, Truck, UserCheck, Flag, Lock, RotateCcw,
 } from 'lucide-react';
 import { useAuth } from '../contexto/ContextoAuth';
 import ObservacionesPanel from '../componentes/ObservacionesPanel';
@@ -87,18 +87,19 @@ function BarraEstadoDocumento({ riesgos, bloqueado, isAdmin, moneda }) {
 }
 
 function BarraAcciones({
-  bloqueado, guardando, isAdmin, prevalidando, aprobarOk,
+  bloqueado, enEspera, guardando, isAdmin, prevalidando, aprobarOk,
   tieneDocGuardado, riesgo,
   onGuardar, onPrevalidarAprobar, onAprobar,
 }) {
-  const btnDisabled = aprobarOk || bloqueado;
+  const bloqueadoEfectivo = bloqueado || enEspera;
+  const btnDisabled = aprobarOk || bloqueadoEfectivo;
   return (
     <div className={styles.accionesBar}>
-      <button onClick={onGuardar} className={`btn btn-secondary ${styles.accionesBtnIcon}`} disabled={guardando || bloqueado}>
+      <button onClick={onGuardar} className={`btn btn-secondary ${styles.accionesBtnIcon}`} disabled={guardando || bloqueadoEfectivo}>
         {guardando ? <Loader2 size={16} className="spin" /> : <Save size={16} />}
         {guardando ? 'Guardando...' : 'Guardar Cambios'}
       </button>
-      {!bloqueado && tieneDocGuardado && isAdmin && (
+      {!bloqueadoEfectivo && tieneDocGuardado && isAdmin && (
         <button onClick={onPrevalidarAprobar} disabled={prevalidando}
           className={`btn ${styles.accionesBtnPrevalidar}`}
           style={{ cursor: prevalidando ? 'not-allowed' : 'pointer' }}>
@@ -107,7 +108,7 @@ function BarraAcciones({
         </button>
       )}
       {(!isAdmin && riesgo === 'alto') ? (
-        <button onClick={onAprobar} disabled={bloqueado} className={`btn btn-danger ${styles.accionesBtnDanger}`}>
+        <button onClick={onAprobar} disabled={bloqueadoEfectivo} className={`btn btn-danger ${styles.accionesBtnDanger}`}>
           <ShieldAlert size={16} /> Solicitar Aprobación Admin
         </button>
       ) : (
@@ -664,6 +665,7 @@ const InvoiceDetail = () => {
     entidades: [], cargandoEntidades: false, metadata: null, itemId: null,
   });
   const [bloqueado, setBloqueado] = useState(false);
+  const [enEspera, setEnEspera] = useState(false);
   const [prevalidando, setPrevalidando] = useState(false);
   const [toast, setToast] = useState(null);
   const mostrarToast = (mensaje, tipo = 'info') => setToast({ mensaje, tipo });
@@ -923,7 +925,20 @@ const InvoiceDetail = () => {
       mensaje, email,
     });
     setAclaracionModal(false);
+    setEnEspera(true);
     return res;
+  };
+
+  const handleReabrir = async () => {
+    const docId = id || historyData?.id;
+    if (!docId || docId === 'null') return;
+    try {
+      await peticionPut(`/api/documentos/${docId}/reabrir`, {});
+      setEnEspera(false);
+      mostrarToast('Documento reabierto correctamente.', 'success');
+    } catch (err) {
+      mostrarToast('Error al reabrir: ' + err.message, 'error');
+    }
   };
 
   const handlePdfTextExtracted = (text) => {
@@ -1056,6 +1071,7 @@ const InvoiceDetail = () => {
         setSeguro(data.seguro ?? 0);
         setOtrosGastos(data.otros ?? 0);
         if (data.bloqueado) setBloqueado(true);
+        if (data.estado === 'En Espera') setEnEspera(true);
         setDocumentoFetchado(true);
       })
       .catch(() => {})
@@ -1066,6 +1082,9 @@ const InvoiceDetail = () => {
   useEffect(() => {
     if (historyData?.bloqueado || documentoFetchado?.bloqueado) {
       setBloqueado(true);
+    }
+    if (historyData?.estado === 'En Espera' || documentoFetchado?.estado === 'En Espera') {
+      setEnEspera(true);
     }
   }, [historyData, documentoFetchado]);
 
@@ -1226,21 +1245,61 @@ const InvoiceDetail = () => {
     if (!reportRef.current) return;
     try {
       mostrarToast('Generando PDF...', 'info');
-      const canvas = await html2canvas(reportRef.current, { scale: 2, useCORS: true, logging: false });
-      const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const anchoPagina = pdf.internal.pageSize.getWidth();
-      const altoPagina = pdf.internal.pageSize.getHeight();
-      const altoImg = (canvas.height * anchoPagina) / canvas.width;
-      let resto = altoImg;
-      let posY = 0;
-      pdf.addImage(imgData, 'PNG', 0, posY, anchoPagina, altoImg);
-      resto -= altoPagina;
-      while (resto > 0) {
-        posY -= altoPagina;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, posY, anchoPagina, altoImg);
-        resto -= altoPagina;
+      const PW = pdf.internal.pageSize.getWidth();
+      const PH = pdf.internal.pageSize.getHeight();
+      const MG = 10;
+      const UW = PW - MG * 2;
+      const container = reportRef.current;
+      const fullCanvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false });
+      const scale = fullCanvas.width / Math.max(container.offsetWidth, 1);
+      const secciones = Array.from(container.children)
+        .filter(el => el.nodeType === 1 && (el.tagName === 'TABLE' || el.tagName === 'DIV'))
+        .map(el => ({
+          left: el.offsetLeft,
+          top: el.offsetTop,
+          width: el.offsetWidth,
+          height: el.offsetHeight,
+        }))
+        .filter(r => r.width > 0 && r.height > 0);
+      let y = MG;
+      for (const r of secciones) {
+        const cx = r.left * scale;
+        const cy = r.top * scale;
+        const cw = r.width * scale;
+        const ch = r.height * scale;
+        const tmp = document.createElement('canvas');
+        tmp.width = cw;
+        tmp.height = ch;
+        tmp.getContext('2d').drawImage(fullCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
+        const img = tmp.toDataURL('image/png');
+        const hMm = (ch * UW) / cw;
+        if (y + hMm > PH - MG && y > MG) {
+          pdf.addPage();
+          y = MG;
+        }
+        if (hMm <= PH - MG * 2) {
+          pdf.addImage(img, 'PNG', MG, y, UW, hMm);
+          y += hMm + 5;
+        } else {
+          let resto = hMm;
+          let yOff = 0;
+          while (resto > 0) {
+            const hVis = Math.min(resto, PH - MG * 2);
+            const proporcion = hVis / hMm;
+            const hCh = ch * proporcion;
+            const yCh = ch * (yOff / hMm);
+            const ptmp = document.createElement('canvas');
+            ptmp.width = cw;
+            ptmp.height = hCh;
+            ptmp.getContext('2d').drawImage(tmp, 0, yCh, cw, hCh, 0, 0, cw, hCh);
+            pdf.addImage(ptmp.toDataURL('image/png'), 'PNG', MG, y, UW, hVis);
+            resto -= hVis;
+            yOff += hVis;
+            if (resto > 0) { pdf.addPage(); y = MG; }
+          }
+          y = MG + 5;
+        }
       }
       pdf.save(`WebCheck_Reporte_${factura.numero || 'documento'}.pdf`);
       mostrarToast('PDF generado exitosamente', 'success');
@@ -1269,12 +1328,18 @@ const InvoiceDetail = () => {
           </div>
         </div>
         <div className={styles.pageHeaderRight}>
-          <div className={styles.estadoBadge} style={{
-            color: stats.color, background: stats.bg,
-            border: `1px solid ${stats.color}30`,
-          }}>
-            <StatIcon size={14} /> {stats.label}
-          </div>
+          {enEspera ? (
+            <div className={styles.estadoBadgeEnEspera}>
+              <MessageSquare size={14} /> En Espera
+            </div>
+          ) : (
+            <div className={styles.estadoBadge} style={{
+              color: stats.color, background: stats.bg,
+              border: `1px solid ${stats.color}30`,
+            }}>
+              <StatIcon size={14} /> {stats.label}
+            </div>
+          )}
           {bloqueado && (
             <div className={styles.estadoBadgeLocked}>
               <Lock size={12} /> Aprobado
@@ -1283,10 +1348,15 @@ const InvoiceDetail = () => {
           <button onClick={handleExportPDF} className={`btn btn-secondary ${styles.exportBtn}`}>
             <FileText size={14} /> PDF
           </button>
-          {!bloqueado && ((id && id !== 'null') || historyData?.id) && (
+          {!bloqueado && !enEspera && ((id && id !== 'null') || historyData?.id) && (
             <button onClick={() => setAclaracionModal(true)}
               className={`btn ${styles.aclaracionBtn}`}>
               <MessageSquare size={14} /> Aclaración
+            </button>
+          )}
+          {!bloqueado && enEspera && (
+            <button onClick={handleReabrir} className={`btn ${styles.reabrirBtn}`}>
+              <RotateCcw size={14} /> Reabrir
             </button>
           )}
         </div>
@@ -1638,6 +1708,7 @@ const InvoiceDetail = () => {
 
           <BarraAcciones
             bloqueado={bloqueado}
+            enEspera={enEspera}
             guardando={guardando}
             isAdmin={isAdmin}
             prevalidando={prevalidando}

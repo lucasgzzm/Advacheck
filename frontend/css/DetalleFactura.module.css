@@ -91,6 +91,18 @@
   background: rgba(16, 185, 129, 0.1);
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
+.estadoBadgeEnEspera {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--yellow);
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
 .estadoRight {
   display: flex;
   gap: 6px;
@@ -484,6 +496,19 @@
   background-color: rgba(245, 158, 11, 0.1);
   color: var(--yellow);
   border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.reabrirBtn {
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  background-color: rgba(59, 130, 246, 0.1);
+  color: var(--blue);
+  border: 1px solid rgba(59, 130, 246, 0.3);
   border-radius: 10px;
   display: flex;
   align-items: center;

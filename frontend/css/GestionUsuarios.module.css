@@ -287,6 +287,18 @@
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
+.createModalPanel .modalHeader {
+  justify-content: center;
+  position: relative;
+}
+
+.createModalPanel .modalCloseBtn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
 .createModalPanel .formField {
   margin-bottom: 16px;
 }
@@ -308,7 +320,7 @@
 .createModalActions {
   margin-top: 20px;
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
 }
 
 .filterBar {
